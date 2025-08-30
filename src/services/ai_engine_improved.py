@@ -31,8 +31,9 @@ class AIConversationEngine:
             logger.info("Usando OPENAI_API_KEY para o cliente OpenAI.")
         else:
             raise ValueError("Nenhuma chave de API (GROQ_API_KEY ou OPENAI_API_KEY) encontrada.")
-        
+            self.conversation_history = {}
         self.conversation_history = {}
+
         self.sales_prompts = self._load_sales_prompts()
         
     def _load_sales_prompts(self) -> Dict[str, str]:
