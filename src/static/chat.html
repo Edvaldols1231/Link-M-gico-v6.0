@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chat - LinkMágico Chatbot v6.0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta name="color-scheme" content="light dark">
+  <style>
+    .spinner{border:4px solid rgba(0,0,0,0.1);border-left-color:currentColor;border-radius:50%;width:1.25rem;height:1.25rem;animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .chat-container { max-height: 500px; overflow-y: auto; }
+    .message-user { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .message-bot { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-100">
+  <main class="container mx-auto px-4 py-6">
+    <section class="max-w-4xl mx-auto">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight">🤖 Chat - LinkMágico v6.0</h1>
+          <p class="text-slate-500 dark:text-slate-400 mt-1" id="chatDescription">Converse com seu assistente virtual inteligente</p>
+        </div>
+        <button id="darkToggle" class="rounded-xl border px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">🌓 Tema</button>
+      </div>
+
+      <div class="bg-white/70 dark:bg-slate-800/60 backdrop-blur-md rounded-2xl shadow-xl ring-1 ring-black/5 dark:ring-white/10">
+        <!-- Chat Messages Container -->
+        <div id="chatContainer" class="chat-container p-6 space-y-4">
+          <div class="text-center text-slate-500 dark:text-slate-400 text-sm">
+            <div class="spinner mx-auto mb-2"></div>
+            <p>Carregando conversa...</p>
+          </div>
+        </div>
+
+        <!-- Chat Input -->
+        <div class="border-t border-slate-200 dark:border-slate-700 p-4">
+          <form id="chatForm" class="flex items-center gap-3">
+            <input 
+              id="messageInput" 
+              type="text" 
+              placeholder="Digite sua mensagem..." 
+              class="flex-1 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-violet-500"
+              disabled
+            />
+            <button 
+              type="submit" 
+              id="sendBtn"
+              class="rounded-xl bg-violet-600 hover:bg-violet-700 disabled:bg-slate-400 text-white font-medium px-6 py-3 shadow-lg shadow-violet-600/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500"
+              disabled
+            >
+              Enviar
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <p class="text-center text-xs text-slate-400 mt-6">LinkMágico Chatbot v6.0 • IA Conversacional Inteligente</p>
+    </section>
+  </main>
+
+  <script>
+    // Dark toggle
+    const darkToggle = document.getElementById('darkToggle');
+    const root = document.documentElement;
+    const savedTheme = localStorage.getItem('lm_theme');
+    if (savedTheme === 'dark') root.classList.add('dark');
+    darkToggle.addEventListener('click', () => {
+      root.classList.toggle('dark');
+      localStorage.setItem('lm_theme', root.classList.contains('dark') ? 'dark' : 'light');
+    });
+
+    // Chat functionality
+    const chatContainer = document.getElementById('chatContainer');
+    const chatForm = document.getElementById('chatForm');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const chatDescription = document.getElementById('chatDescription');
+
+    let sessionId = null;
+    let chatConfig = null;
+
+    // Get session ID from URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    sessionId = urlParams.get('session_id');
+
+    if (!sessionId) {
+      showError('Sessão não encontrada. Verifique o link do chatbot.');
+    } else {
+      initializeChat();
+    }
+
+    async function initializeChat() {
+      try {
+        // Load chat configuration and history
+        const historyRes = await fetch(`/api/chatbot/conversation-history/${sessionId}`);
+        const historyData = await historyRes.json();
+        
+        if (!historyRes.ok) {
+          throw new Error(historyData.error || 'Erro ao carregar histórico');
+        }
+
+        // Extract configuration from the first message (setup message)
+        if (historyData.history.length > 0) {
+          const firstMessage = historyData.history[0];
+          // Parse context data to get configuration
+          try {
+            const contextData = JSON.parse(firstMessage.context_data || '{}');
+            chatConfig = {
+              robot_name: contextData.robot_name || 'Assistente',
+              url: contextData.url || '',
+              instructions: contextData.instructions || ''
+            };
+            
+            chatDescription.textContent = `Conversando com ${chatConfig.robot_name}`;
+          } catch (e) {
+            console.warn('Erro ao parsear dados de contexto:', e);
+          }
+        }
+
+        // Display chat history (skip the first setup message)
+        const chatMessages = historyData.history.slice(1);
+        displayChatHistory(chatMessages);
+
+        // Enable chat input
+        messageInput.disabled = false;
+        sendBtn.disabled = false;
+        messageInput.focus();
+
+        // Show welcome message if no previous messages
+        if (chatMessages.length === 0) {
+          addMessage('bot', `Olá! Sou o ${chatConfig?.robot_name || 'seu assistente virtual'}. Como posso ajudar você hoje? 😊`);
+        }
+
+      } catch (error) {
+        console.error('Erro ao inicializar chat:', error);
+        showError('Erro ao carregar o chat. Tente novamente.');
+      }
+    }
+
+    function displayChatHistory(messages) {
+      chatContainer.innerHTML = '';
+      messages.forEach(msg => {
+        addMessage('user', msg.user_message, false);
+        addMessage('bot', msg.bot_response, false);
+      });
+      scrollToBottom();
+    }
+
+    function addMessage(sender, text, scroll = true) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+      
+      const messageBubble = document.createElement('div');
+      messageBubble.className = `max-w-xs lg:max-w-md px-4 py-2 rounded-2xl text-white text-sm ${
+        sender === 'user' ? 'message-user' : 'message-bot'
+      }`;
+      messageBubble.textContent = text;
+      
+      messageDiv.appendChild(messageBubble);
+      chatContainer.appendChild(messageDiv);
+      
+      if (scroll) scrollToBottom();
+    }
+
+    function showError(message) {
+      chatContainer.innerHTML = `
+        <div class="text-center text-red-500 dark:text-red-400">
+          <p class="font-medium">❌ ${message}</p>
+        </div>
+      `;
+    }
+
+    function scrollToBottom() {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    // Handle form submission
+    chatForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const message = messageInput.value.trim();
+      if (!message) return;
+
+      // Add user message to chat
+      addMessage('user', message);
+      messageInput.value = '';
+      
+      // Disable input while processing
+      messageInput.disabled = true;
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Enviando...';
+
+      try {
+        const response = await fetch('/api/chatbot/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: message,
+            session_id: sessionId,
+            url: chatConfig?.url
+          })
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Erro ao enviar mensagem');
+        }
+
+        // Add bot response to chat
+        addMessage('bot', data.response);
+
+      } catch (error) {
+        console.error('Erro ao enviar mensagem:', error);
+        addMessage('bot', 'Desculpe, ocorreu um erro. Pode tentar novamente?');
+      } finally {
+        // Re-enable input
+        messageInput.disabled = false;
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Enviar';
+        messageInput.focus();
+      }
+    });
+  </script>
+</body>
+</html>sages = document.getElementById('chatMessages');
+    const row = document.createElement('div');
+    row.className = 'flex items-start gap-2 mb-3 ' + (isUser ? 'justify-end' : 'justify-start');
+
+    const avatar = document.createElement('img');
+    avatar.className = 'w-8 h-8 rounded-full';
+    avatar.src = isUser ? (cfg.user || localStorage.getItem('userAvatar') || 'user.png') 
+                        : (cfg.bot  || localStorage.getItem('botAvatar')  || 'bot.png');
+
+    const bubble = document.createElement('div');
+    bubble.className = (isUser ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black') + ' p-2 rounded-2xl max-w-xs';
+
+    if (!isUser){
+      // Typewriter
+      let i=0; const speed=20;
+      (function type(){ if(i<text.length){ bubble.textContent += text.charAt(i++); setTimeout(type,speed);} })();
+      row.appendChild(avatar); row.appendChild(bubble);
+    } else {
+      bubble.textContent = text;
+      row.appendChild(bubble); row.appendChild(avatar);
+    }
+    chatMessages.appendChild(row);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+})();
+
+</script>
+</body>
+</html>
