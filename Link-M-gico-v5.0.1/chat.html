@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LinkMágico Chatbot - Assistente IA</title>
+<style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .chat-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+            height: 600px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .chat-header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+        
+        .chat-header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+        
+        .product-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .product-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 0.95rem;
+        }
+        
+        .product-price {
+            color: #28a745;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .message.user {
+            justify-content: flex-end;
+        }
+        
+        .message.bot {
+            justify-content: flex-start;
+        }
+        
+        .message-content {
+            max-width: 80%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            white-space: pre-line;
+            line-height: 1.4;
+        }
+        
+        .message.user .message-content {
+            background: #667eea;
+            color: white;
+        }
+        
+        .message.bot .message-content {
+            background: white;
+            color: #333;
+            border: 1px solid #e9ecef;
+        }
+        
+        .chat-input {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .input-group input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            outline: none;
+            font-size: 1rem;
+        }
+        
+        .input-group input:focus {
+            border-color: #667eea;
+        }
+        
+        .input-group button {
+            padding: 12px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s;
+        }
+        
+        .input-group button:hover {
+            background: #5a6fd8;
+        }
+        
+        .typing-indicator {
+            display: none;
+            padding: 10px;
+            font-style: italic;
+            color: #666;
+        }
+        
+        @media (max-width: 600px) {
+            .chat-container {
+                height: 100vh;
+                border-radius: 0;
+            }
+        }
+    </style>
+<script src="https://cdn.tailwindcss.com"></script><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><style>
+            body { font-family: 'Inter', sans-serif; background: linear-gradient(to right, #6366f1, #8b5cf6); }
+            .chat-container { max-width: 800px; margin: auto; }
+            .bot-message { background: #f3f4f6; border-radius: 1rem; padding: 0.75rem 1rem; margin: 0.5rem 0; display: inline-block; }
+            .user-message { background: #4f46e5; color: white; border-radius: 1rem; padding: 0.75rem 1rem; margin: 0.5rem 0; display: inline-block; align-self: flex-end; }
+            .chat-box { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; background: white; border-radius: 1rem; height: 70vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+            .chat-input { display: flex; gap: 0.5rem; margin-top: 1rem; }
+            .chat-input input { flex: 1; border: 1px solid #d1d5db; border-radius: 0.75rem; padding: 0.75rem; }
+            .chat-input button { background: #4f46e5; color: white; border-radius: 0.75rem; padding: 0.75rem 1.5rem; transition: background 0.2s; }
+            .chat-input button:hover { background: #4338ca; }
+        </style></head>
+<body>
+
+<div id="configScreen" class="fixed inset-0 flex items-center justify-center bg-gray-900 text-white z-50">
+  <div class="bg-gray-800 p-6 rounded-2xl shadow-lg w-96 space-y-4">
+    <h2 class="text-xl font-bold mb-2">Configuração do Chat</h2>
+    <label class="block">Nome do Bot:
+      <input type="text" id="botNameInput" class="w-full p-2 rounded text-black" placeholder="Assistente Virtual">
+    </label>
+    <label class="block">Logo do Cliente:
+      <input type="file" id="logoInput" accept="image/*" class="w-full p-2 rounded bg-gray-700"> <img id="previewLogo" class="w-10 h-10 rounded-full border ml-2 inline-block align-middle" alt="preview" />
+    </label>
+    <label class="block">Avatar do Bot:
+      <input type="file" id="botAvatarInput" accept="image/*" class="w-full p-2 rounded bg-gray-700"> <img id="previewBot" class="w-10 h-10 rounded-full border ml-2 inline-block align-middle" alt="preview" />
+    </label>
+    <label class="block">Avatar do Usuário:
+      <input type="file" id="userAvatarInput" accept="image/*" class="w-full p-2 rounded bg-gray-700"> <img id="previewUser" class="w-10 h-10 rounded-full border ml-2 inline-block align-middle" alt="preview" />
+    </label>
+    <button id="startBtn" class="w-full bg-blue-500 hover:bg-blue-600 p-2 rounded font-bold">Iniciar Chat</button>
+  </div>
+</div>
+
+<div class="chat-container">
+<div class="chat-header">
+<h1 id="robotName">🤖 Assistente IA</h1>
+<p>Assistente Inteligente para Vendas</p>
+</div>
+<div class="product-info" id="productInfo" style="display: none;">
+<div class="product-title" id="productTitle"></div>
+<div class="product-price" id="productPrice"></div>
+</div>
+<div class="chat-messages" id="chatMessages">
+<div class="message bot">
+<div class="message-content" id="welcomeMessage">
+                    Olá! 👋 Sou seu assistente especializado. Como posso te ajudar hoje?
+                </div>
+</div>
+</div>
+<div class="typing-indicator" id="typingIndicator">
+            Assistente está digitando...
+        </div>
+<div class="chat-input">
+<div class="input-group">
+<input id="messageInput" maxlength="500" placeholder="Digite sua pergunta..." type="text"/>
+<button onclick="sendMessage()">Enviar</button>
+</div>
+</div>
+</div>
+<script>
+        let pageData = null;
+        let robotName = 'Assistente IA';
+        let conversationId = 'chat_' + Date.now();
+        
+        // Extrair parâmetros da URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const pageUrl = urlParams.get('url');
+        const robotNameParam = urlParams.get('name');
+        const customInstructions = urlParams.get('instructions') || '';
+        
+        if (robotNameParam) {
+            robotName = robotNameParam;
+            document.getElementById('robotName').textContent = `🤖 ${robotName}`;
+        }
+        
+        // Carregar dados da página se URL fornecida
+        if (pageUrl) {
+            loadPageData(pageUrl);
+        }
+        
+        async function loadPageData(url) {
+            try {
+                const response = await fetch('/extract', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        url: url,
+                        instructions: customInstructions
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data && data.data) {
+                    pageData = data.data;
+                } else if (data) {
+                    pageData = data;
+                }
+                
+                // Adiciona instruções personalizadas aos dados da página
+                if (pageData && customInstructions) {
+                    pageData.custom_instructions = customInstructions;
+                }
+                
+                if (pageData) {
+                    document.getElementById('productTitle').textContent = pageData.title || 'Produto';
+                    document.getElementById('productPrice').textContent = pageData.price || 'Consulte o preço';
+                    document.getElementById('productInfo').style.display = 'block';
+                    
+                    // Atualizar mensagem de boas-vindas
+                    document.getElementById('welcomeMessage').textContent = 
+                        `Olá! 👋 Sou o ${robotName}, seu assistente especializado em "${pageData.title}". Como posso te ajudar hoje?`;
+                }
+            } catch (error) {
+                console.error('Erro ao carregar dados da página:', error);
+            }
+        }
+        
+        function addMessage(content, isUser = false) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + (isUser ? 'user' : 'bot');
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+            
+            messageDiv.appendChild(contentDiv);
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        function showTyping() {
+            document.getElementById('typingIndicator').style.display = 'block';
+        }
+        
+        function hideTyping() {
+            document.getElementById('typingIndicator').style.display = 'none';
+        }
+        
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            addMessage(message, true);
+            input.value = '';
+            
+            showTyping();
+            
+            try {
+                const response = await fetch('/chat-universal', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        pageData: pageData,
+                        robotName: robotName,
+                        conversationId: conversationId
+                    })
+                });
+                
+                const data = await response.json();
+                hideTyping();
+                
+                if (data.success) {
+                    addMessage(data.response);
+                } else {
+                    addMessage('Desculpe, ocorreu um erro. Tente novamente.');
+                }
+            } catch (error) {
+                hideTyping();
+                addMessage('Erro de conexão. Verifique sua internet e tente novamente.');
+            }
+        }
+        
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+<script>
+
+// === Persistent Config (localStorage) ===
+function lm_toBase64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});}
+function lm_saveConfig(cfg){ localStorage.setItem('chatConfig', JSON.stringify(cfg)); }
+function lm_loadConfig(){ try{return JSON.parse(localStorage.getItem('chatConfig')||'{}')}catch(e){return {}} }
+
+async function lm_handleFilePreview(inputEl, imgElId, key){
+  const file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  const data = await lm_toBase64(file);
+  const img = document.getElementById(imgElId);
+  if (img){ img.src = data; img.style.display='inline-block'; }
+  const cfg = lm_loadConfig();
+  cfg[key] = data;
+  lm_saveConfig(cfg);
+}
+
+function lm_applyConfigToUI(){
+  const cfg = lm_loadConfig();
+  // Pre-fill form previews/values
+  if (cfg.name) { const el=document.getElementById('botNameInput'); if(el) el.value = cfg.name; }
+  if (cfg.logo) { const el=document.getElementById('previewLogo'); if(el){ el.src = cfg.logo; el.style.display='inline-block'; } }
+  if (cfg.bot)  { const el=document.getElementById('previewBot');  if(el){ el.src = cfg.bot;  el.style.display='inline-block'; } }
+  if (cfg.user) { const el=document.getElementById('previewUser'); if(el){ el.src = cfg.user; el.style.display='inline-block'; } }
+
+  // Apply to header immediately (logo + name)
+  const nameEl = document.getElementById('robotName');
+  if (nameEl) nameEl.textContent = (cfg.name || nameEl.textContent || 'Assistente Virtual');
+  const logoEl = document.getElementById('clientLogo');
+  if (logoEl && cfg.logo){ logoEl.src = cfg.logo; logoEl.classList.remove('hidden'); }
+}
+
+async function startChat(){
+  const cfg = lm_loadConfig();
+  const nameInput = document.getElementById('botNameInput');
+  if (nameInput && nameInput.value) cfg.name = nameInput.value;
+
+  // Nothing else to do here: file inputs are handled on change and already saved.
+  lm_saveConfig(cfg);
+
+  // Hide preconfig and enable chat
+  const overlay = document.getElementById('configScreen'); if (overlay) overlay.style.display='none';
+  lm_applyConfigToUI();
+}
+
+// Bind listeners after DOM ready
+document.addEventListener('DOMContentLoaded', ()=>{
+  const nameInput = document.getElementById('botNameInput');
+  if (nameInput){ nameInput.addEventListener('input', ()=>{ const cfg=lm_loadConfig(); cfg.name=nameInput.value; lm_saveConfig(cfg); }); }
+
+  const logoInput = document.getElementById('logoInput');
+  if (logoInput){ logoInput.addEventListener('change', (e)=> lm_handleFilePreview(logoInput, 'previewLogo', 'logo')); }
+
+  const botInput = document.getElementById('botAvatarInput');
+  if (botInput){ botInput.addEventListener('change', (e)=> lm_handleFilePreview(botInput, 'previewBot', 'bot')); }
+
+  const userInput = document.getElementById('userAvatarInput');
+  if (userInput){ userInput.addEventListener('change', (e)=> lm_handleFilePreview(userInput, 'previewUser', 'user')); }
+
+  // Event listener for start button (modern & clean)
+  const startBtn = document.getElementById('startBtn');
+  if (startBtn){ startBtn.addEventListener('click', startChat); }
+
+  // Apply any existing config
+  lm_applyConfigToUI();
+});
+
+// Hook message rendering to use avatars from config
+(function wrapAddMessage(){
+  const orig = window.addMessage;
+  window.addMessage = function(text, isUser=false){
+    const cfg = lm_loadConfig();
+    // Create message row
+    const chatMessages = document.getElementById('chatMessages');
+    const row = document.createElement('div');
+    row.className = 'flex items-start gap-2 mb-3 ' + (isUser ? 'justify-end' : 'justify-start');
+
+    const avatar = document.createElement('img');
+    avatar.className = 'w-8 h-8 rounded-full';
+    avatar.src = isUser ? (cfg.user || localStorage.getItem('userAvatar') || 'user.png') 
+                        : (cfg.bot  || localStorage.getItem('botAvatar')  || 'bot.png');
+
+    const bubble = document.createElement('div');
+    bubble.className = (isUser ? 'bg-blue-600 text-white' : 'bg-gray-200 text-black') + ' p-2 rounded-2xl max-w-xs';
+
+    if (!isUser){
+      // Typewriter
+      let i=0; const speed=20;
+      (function type(){ if(i<text.length){ bubble.textContent += text.charAt(i++); setTimeout(type,speed);} })();
+      row.appendChild(avatar); row.appendChild(bubble);
+    } else {
+      bubble.textContent = text;
+      row.appendChild(bubble); row.appendChild(avatar);
+    }
+    chatMessages.appendChild(row);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+})();
+
+</script>
+</body>
+</html>
