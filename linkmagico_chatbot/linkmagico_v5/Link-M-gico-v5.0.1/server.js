@@ -6,55 +6,6 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 require('dotenv').config();
 
-// ===== Added: Providers priority (GROQ -> OpenAI) and style enforcers =====
-
-function ensureConversationalStyle(text) {
-  if (!text) return '';
-  // Shorten overly long responses
-  const maxChars = 750; // ~120-140 words
-  let out = text.trim();
-  if (out.length > maxChars) out = out.slice(0, maxChars).trim() + '…';
-  // Ensure ends with a question to keep flow
-  const trimmed = out.replace(/[\s\n]+$/g, '');
-  if (!/[?？！]$/.test(trimmed)) {
-    out = trimmed + ' — posso seguir por aqui?';
-  }
-  return out;
-}
-
-
-async function callGroq(messages, temperature=0.5, max_tokens=500){
-  if(!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY ausente');
-  const payload = {
-    model: process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
-    messages,
-    temperature,
-    max_tokens
-  };
-  const res = await axios.post('https://api.groq.com/openai/v1/chat/completions', payload, {
-    headers: { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}` }
-  });
-  if(res.status < 200 || res.status >= 300){ throw new Error('GROQ falhou ' + res.status); }
-  return (res.data.choices && res.data.choices[0] && res.data.choices[0].message && res.data.choices[0].message.content) || '';
-}
-
-
-async function callOpenAI(messages, temperature=0.5, max_tokens=500){
-  if(!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY ausente');
-  const payload = {
-    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-    messages,
-    temperature,
-    max_tokens
-  };
-  const res = await axios.post('https://api.openai.com/v1/chat/completions', payload, {
-    headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` }
-  });
-  if(res.status < 200 || res.status >= 300){ throw new Error('OpenAI falhou ' + res.status); }
-  return (res.data.choices && res.data.choices[0] && res.data.choices[0].message && res.data.choices[0].message.content) || '';
-}
-
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -449,7 +400,8 @@ async function extractPageData(url) {
       
       // Fallback: tentar com fetch nativo se axios falhar
       try {
-                const response = await fetch(url, {
+        const fetch = require('node-fetch');
+        const response = await fetch(url, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           },
@@ -610,54 +562,43 @@ INSTRUÇÕES:
 
 Pergunta do cliente: ${userMessage}`;
 
-    
-    // ===== Conversational Intelligence v6.1 (short, natural, stepwise, ends with question) =====
-    const systemPrompt = `Você é um assistente de vendas CONCISO e humano. Regras:
-- Responda curto (2–6 frases), direto e natural, sem "textão publicitário".
-- Construa em etapas: ofereça próximos passos OU opções curtas; só aprofunde se o usuário pedir.
-- Tom humano, gentil e claro; evite jargões e exageros.
-- Use SOMENTE fatos da página fornecida abaixo. Se algo não estiver nos dados, diga que não está disponível.
-- Sempre termine com uma pergunta para manter a conversa fluindo.
-- Escreva no mesmo idioma do usuário.
-- Se a pergunta não for sobre o produto/página, redirecione educadamente para o tema.
-
-Contexto da página:
-Título: ${pageData.title}
-Descrição: ${pageData.description}
-Preço: ${pageData.price}
-Benefícios: ${Array.isArray(pageData.benefits)?pageData.benefits.join(', '):pageData.benefits}
-Provas sociais: ${Array.isArray(pageData.testimonials)?pageData.testimonials.join(' | '):pageData.testimonials}
-CTA: ${pageData.cta}`;
-
-    const conversationHistory = (conversation || []).slice(-6).map(m => ({
-      role: m.role === 'assistant' ? 'assistant' : 'user',
-      content: m.message
-    }));
-
-    const messages = [{ role: 'system', content: systemPrompt }, ...conversationHistory, { role: 'user', content: userMessage }];
-
-    let aiResponse = '';
-    try {
-      aiResponse = await callGroq(messages, 0.4, 400);
-      logger.info('Resposta via GROQ');
-    } catch (e1) {
-      logger.warn('GROQ indisponível, tentando OpenAI...', e1.message);
-      try {
-        aiResponse = await callOpenAI(messages, 0.4, 400);
-        logger.info('Resposta via OpenAI');
-      } catch (e2) {
-        logger.error('OpenAI indisponível', e2.message);
-        throw e2;
+    const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+      model: 'microsoft/wizardlm-2-8x22b',
+      messages: [
+        {
+          role: 'system',
+          content: 'Você é um assistente de vendas especializado, amigável e altamente persuasivo. Use apenas informações reais do produto fornecidas.'
+        },
+        ...conversationHistory.slice(-5), // Últimas 5 mensagens para contexto
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      max_tokens: 500,
+      temperature: 0.7
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://linkmagico-chatbot.com',
+        'X-Title': 'LinkMagico Chatbot'
       }
+    });
+
+    if (response.status === 200) {
+      const aiResponse = response.data.choices[0].message.content;
+      
+      // Adicionar resposta da IA ao histórico
+      conversation.push({ role: 'assistant', message: aiResponse, timestamp: Date.now() });
+      conversationCache.set(conversationId, conversation);
+      
+      return aiResponse;
+    } else {
+      throw new Error('Erro na API do OpenRouter');
     }
 
-    aiResponse = ensureConversationalStyle(aiResponse);
-
-    // Adicionar resposta da IA ao histórico
-    conversation.push({ role: 'assistant', message: aiResponse, timestamp: Date.now() });
-    conversationCache.set(conversationId, conversation);
-    return aiResponse;
-    } catch (error) {
+  } catch (error) {
     logger.error('Erro na geração de resposta IA:', error);
     
     // SUPER FALLBACK: Resposta específica e persuasiva
