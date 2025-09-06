@@ -528,13 +528,18 @@ async function extractPageData(url) {
     }
 
     // Salvar no cache
-    dataCache.set(cacheKey, {
-      data: extractedData,
-      timestamp: Date.now()
-    });
-    
-    logger.info("Dados SUPER REFINADOS extraídos:", extractedData);
-    return extractedData;
+   // Forçar título e preço a ficarem vazios
+extractedData.title = "";
+extractedData.price = "";
+
+// Salvar no cache
+dataCache.set(cacheKey, {
+  data: extractedData,
+  timestamp: Date.now()
+});
+
+logger.info("Dados SUPER REFINADOS extraídos (com título e preço ocultados):", extractedData);
+return extractedData;
 
   } catch (error) {
     logger.error("Erro geral na extração:", error);
