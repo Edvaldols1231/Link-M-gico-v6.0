@@ -4,15 +4,6 @@ const helmet = require('helmet');
 const winston = require('winston');
 const axios = require('axios');
 const cheerio = require('cheerio');
-
-// Helper to build conversation history consistently
-function buildConversationHistory(conversation) {
-  return (conversation || []).slice(-6).map(m => ({
-    role: m.role || "user",
-    content: m.content || ""
-  }));
-}
-
 require('dotenv').config();
 
 // ===== Added: Providers priority (GROQ -> OpenAI) and style enforcers =====
@@ -735,7 +726,7 @@ Benefícios: ${Array.isArray(pageData.benefits)?pageData.benefits.join(', '):pag
 Provas sociais: ${Array.isArray(pageData.testimonials)?pageData.testimonials.join(' | '):pageData.testimonials}
 CTA: ${pageData.cta}`;
 
-    const groqConversationHistory = buildConversationHistory(conversation);.map(m => ({
+    const conversationHistory = (conversation || []).slice(-6).map(m => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: m.message
     }));
