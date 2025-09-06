@@ -5,7 +5,6 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>LinkMágico Chatbot - Assistente IA</title>
-<meta content="light dark" name="color-scheme"/>
 <style>
         * {
             margin: 0;
@@ -175,20 +174,8 @@
             .chat-input input { flex: 1; border: 1px solid #d1d5db; border-radius: 0.75rem; padding: 0.75rem; }
             .chat-input button { background: #4f46e5; color: white; border-radius: 0.75rem; padding: 0.75rem 1.5rem; transition: background 0.2s; }
             .chat-input button:hover { background: #4338ca; }
-        </style>
-<script>
-// --- Safe variable declaration helper ---
-window._vars = window._vars || {};
-function safeDeclare(name, value) {
-  if (window._vars[name] !== undefined) return window._vars[name];
-  window._vars[name] = value;
-  return value;
-}
-</script>
-</head>
+        </style></head>
 <body>
-<button id="darkToggle" style="position:fixed;top:12px;right:12px;padding:8px 12px;border-radius:10px;border:1px solid #ddd;background:#fff;cursor:pointer">🌓 Tema</button>
-<div id="alert" style="display:none;position:fixed;top:12px;left:12px;background:#e6ffed;color:#065f46;padding:8px 12px;border-radius:10px;border:1px solid #bbf7d0;"></div>
 <div class="chat-container">
 <div class="chat-header">
 <h1 id="robotName">🤖 Assistente IA</h1>
@@ -238,7 +225,7 @@ function safeDeclare(name, value) {
         
         async function loadPageData(url) {
             try {
-                const response = safeDeclare('response',  await fetch('/extract', {
+                const response = await fetch('/extract', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -249,7 +236,7 @@ function safeDeclare(name, value) {
                     })
                 });
                 
-                const data = safeDeclare('data',  await response.json();
+                const data = await response.json();
                 
                 if (data && data.data) {
                     pageData = data.data;
@@ -310,7 +297,7 @@ function safeDeclare(name, value) {
             showTyping();
             
             try {
-                const response = safeDeclare('response',  await fetch('/chat-universal', {
+                const response = await fetch('/chat-universal', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -323,7 +310,7 @@ function safeDeclare(name, value) {
                     })
                 });
                 
-                const data = safeDeclare('data',  await response.json();
+                const data = await response.json();
                 hideTyping();
                 
                 if (data.success) {
@@ -333,7 +320,6 @@ function safeDeclare(name, value) {
                 }
             } catch (error) {
                 hideTyping();
-                showAlert('Erro de conexão. Verifique sua internet e tente novamente.', false);
                 addMessage('Erro de conexão. Verifique sua internet e tente novamente.');
             }
         }
@@ -343,28 +329,6 @@ function safeDeclare(name, value) {
                 sendMessage();
             }
         });
-    
-    // Dark mode toggle (simple)
-    (function(){
-        const btn = document.getElementById('darkToggle');
-        const root = document.documentElement;
-        const saved = localStorage.getItem('lm_theme');
-        if (saved === 'dark') root.classList.add('dark-mode');
-        btn.addEventListener('click', () => {
-            root.classList.toggle('dark-mode');
-            localStorage.setItem('lm_theme', root.classList.contains('dark-mode') ? 'dark' : 'light');
-        });
-    })();
-    function showAlert(msg, ok){
-        var el = document.getElementById('alert');
-        el.style.display = 'block';
-        el.style.background = ok ? '#e6ffed' : '#fee2e2';
-        el.style.color = ok ? '#065f46' : '#991b1b';
-        el.style.borderColor = ok ? '#bbf7d0' : '#fecaca';
-        el.textContent = msg;
-        setTimeout(()=>{ el.style.display='none'; }, 3500);
-    }
-
-</script>
+    </script>
 </body>
 </html>

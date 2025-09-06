@@ -4,18 +4,16 @@ const helmet = require('helmet');
 const winston = require('winston');
 const axios = require('axios');
 const cheerio = require('cheerio');
-require('dotenv').config();
 
-// -----------------------
-// Safe Declare Helper
-// -----------------------
-function safeDeclare(varName, value) {
-  if (global[varName] !== undefined) {
-    return global[varName];
-  }
-  global[varName] = value;
-  return value;
+// Helper to build conversation history consistently
+function buildConversationHistory(conversation) {
+  return (conversation || []).slice(-6).map(m => ({
+    role: m.role || "user",
+    content: m.content || ""
+  }));
 }
+
+require('dotenv').config();
 
 // ===== Added: Providers priority (GROQ -> OpenAI) and style enforcers =====
 
@@ -556,7 +554,7 @@ async function extractPageData(url) {
       
       // Fallback: tentar com fetch nativo se axios falhar
       try {
-        const response = await fetch(url, {
+                const response = await fetch(url, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           },
@@ -653,39 +651,41 @@ async function generateAIResponse(userMessage, pageData, conversationId = 'defau
       let response = '';
       
       if (message.includes('preço') || message.includes('valor') || message.includes('custa') || message.includes('investimento')) {
-        response = `Preço: no "${pageData.title}":**\n\n${pageData.price}\n\nÉ um investimento que se paga rapidamente com os resultados que você vai alcançar! Muitos clientes recuperam o valor em poucos dias.\n\n🎯 ${pageData.cta}`;
+        response = `💰 **Sobre o investimento no "${pageData.title}":**\n\n${pageData.price}\n\nÉ um investimento que se paga rapidamente com os resultados que você vai alcançar! Muitos clientes recuperam o valor em poucos dias.\n\n🎯 ${pageData.cta}`;
         
       } else if (message.includes('benefício') || message.includes('vantagem') || message.includes('o que ganho')) {
-        response = `Benefícios: do "${pageData.title}" são:**\n\n${pageData.benefits.map((benefit, i) => `${i+1}. ${benefit}`).join('\n')}\n\n🚀 ${pageData.cta}`;
+        response = `✅ **Os principais benefícios do "${pageData.title}" são:**\n\n${pageData.benefits.map((benefit, i) => `${i+1}. ${benefit}`).join('\n')}\n\n🚀 ${pageData.cta}`;
         
       } else if (message.includes('como funciona') || message.includes('funciona') || message.includes('método')) {
-        response = `Como funciona: "${pageData.title}" funciona:**\n\n${pageData.description}\n\n**Principais resultados que você vai alcançar:**\n${pageData.benefits.slice(0,3).map(b => `• ${b}`).join('\n')}\n\n💪 ${pageData.cta}`;
+        response = `🔥 **Como o "${pageData.title}" funciona:**\n\n${pageData.description}\n\n**Principais resultados que você vai alcançar:**\n${pageData.benefits.slice(0,3).map(b => `• ${b}`).join('\n')}\n\n💪 ${pageData.cta}`;
         
       } else if (message.includes('garantia') || message.includes('seguro') || message.includes('risco')) {
-        response = `Garantia: O "${pageData.title}" oferece garantia total.**\n\n${pageData.description}\n\nVocê não tem nada a perder e tudo a ganhar! Se não ficar satisfeito, devolvemos seu dinheiro.\n\n✅ ${pageData.cta}`;
+        response = `🛡️ **Sim! O "${pageData.title}" oferece garantia total.**\n\n${pageData.description}\n\nVocê não tem nada a perder e tudo a ganhar! Se não ficar satisfeito, devolvemos seu dinheiro.\n\n✅ ${pageData.cta}`;
         
       } else if (message.includes('depoimento') || message.includes('opinião') || message.includes('funciona mesmo') || message.includes('resultado')) {
         if (pageData.testimonials.length > 0) {
+          // Remover duplicatas dos depoimentos
           const uniqueTestimonials = [...new Set(pageData.testimonials)].slice(0, 3);
-          response = `Depoimentos: sobre "${pageData.title}":**\n\n${uniqueTestimonials.map((t, i) => `${i+1}. "${t}"`).join('\n\n')}\n\n🎯 ${pageData.cta}`;
+          response = `💬 **Veja o que nossos clientes dizem sobre "${pageData.title}":**\n\n${uniqueTestimonials.map((t, i) => `${i+1}. "${t}"`).join('\n\n')}\n\n🎯 ${pageData.cta}`;
         } else {
           response = `💬 **O "${pageData.title}" já transformou a vida de milhares de pessoas!**\n\n${pageData.description}\n\nOs resultados falam por si só!\n\n🚀 ${pageData.cta}`;
         }
         
       } else if (message.includes('bônus') || message.includes('extra') || message.includes('brinde')) {
-        response = `Bônus incluídos: exclusivos para quem adquire o "${pageData.title}" hoje:**\n\n• Suporte especializado\n• Atualizações gratuitas\n• Acesso à comunidade VIP\n• Material complementar\n\n⏰ Oferta por tempo limitado!\n\n🔥 ${pageData.cta}`;
+        response = `🎁 **Sim! Temos bônus exclusivos para quem adquire o "${pageData.title}" hoje:**\n\n• Suporte especializado\n• Atualizações gratuitas\n• Acesso à comunidade VIP\n• Material complementar\n\n⏰ Oferta por tempo limitado!\n\n🔥 ${pageData.cta}`;
         
       } else if (message.includes('comprar') || message.includes('adquirir') || message.includes('quero')) {
-        response = `Pronto para comprar.\n\nO "${pageData.title}" é exatamente o que você precisa para transformar seus resultados!\n\n💰 **Investimento:** ${pageData.price}\n\n✅ **Você vai receber:**\n${pageData.benefits.slice(0,3).map(b => `• ${b}`).join('\n')}\n\n🚀 **${pageData.cta}**\n\nClique no botão acima para garantir sua vaga!`;
+        response = `🎉 **Excelente escolha!**\n\nO "${pageData.title}" é exatamente o que você precisa para transformar seus resultados!\n\n💰 **Investimento:** ${pageData.price}\n\n✅ **Você vai receber:**\n${pageData.benefits.slice(0,3).map(b => `• ${b}`).join('\n')}\n\n🚀 **${pageData.cta}**\n\nClique no botão acima para garantir sua vaga!`;
         
       } else if (message.includes('dúvida') || message.includes('pergunta') || message.includes('ajuda')) {
-        response = `Posso ajudar com dúvidas.\n\nPosso esclarecer qualquer dúvida sobre o "${pageData.title}":\n\n• 💰 Preços e formas de pagamento\n• ✅ Benefícios e características\n• 💬 Depoimentos de clientes\n• 🛡️ Garantias e segurança\n• 🎁 Bônus exclusivos\n• 🚀 Processo de compra\n\nO que você gostaria de saber?`;
+        response = `🤝 **Estou aqui para te ajudar!**\n\nPosso esclarecer qualquer dúvida sobre o "${pageData.title}":\n\n• 💰 Preços e formas de pagamento\n• ✅ Benefícios e características\n• 💬 Depoimentos de clientes\n• 🛡️ Garantias e segurança\n• 🎁 Bônus exclusivos\n• 🚀 Processo de compra\n\nO que você gostaria de saber?`;
         
       } else {
-        response = `Sobre o produto: "${pageData.title}":**\n\n${pageData.description}\n\n💰 **Investimento:** ${pageData.price}\n\n✅ **Principais benefícios:**\n${pageData.benefits.slice(0,3).map(b => `• ${b}`).join('\n')}\n\n🎯 **${pageData.cta}**\n\n**Como posso te ajudar mais?** Posso falar sobre preços, benefícios, garantias ou depoimentos!`;
+        // Resposta padrão mais inteligente e persuasiva
+        response = `Olá! 👋 **Sobre o "${pageData.title}":**\n\n${pageData.description}\n\n💰 **Investimento:** ${pageData.price}\n\n✅ **Principais benefícios:**\n${pageData.benefits.slice(0,3).map(b => `• ${b}`).join('\n')}\n\n🎯 **${pageData.cta}**\n\n**Como posso te ajudar mais?** Posso falar sobre preços, benefícios, garantias ou depoimentos!`;
       }
       
-      response = ensureConversationalStyle(response);
+      // Adicionar resposta ao histórico
       conversation.push({ role: 'assistant', message: response, timestamp: Date.now() });
       conversationCache.set(conversationId, conversation);
       
@@ -693,14 +693,31 @@ async function generateAIResponse(userMessage, pageData, conversationId = 'defau
     }
 
     // Se tiver API key, usar IA externa
-    const conversationHistory = safeDeclare(
-      "conversationHistory",
-      conversation.map(c => ({
-        role: c.role === 'user' ? 'user' : 'assistant',
-        content: c.message
-      }))
-    );
+    const conversationHistory = conversation.map(c => ({
+      role: c.role === 'user' ? 'user' : 'assistant',
+      content: c.message
+    }));
 
+    const prompt = `Você é um assistente de vendas especializado e altamente persuasivo para o produto "${pageData.title}".
+
+INFORMAÇÕES REAIS DO PRODUTO:
+- Título: ${pageData.title}
+- Descrição: ${pageData.description}
+- Preço: ${pageData.price}
+- Benefícios: ${pageData.benefits.join(', ')}
+- Call to Action: ${pageData.cta}
+
+INSTRUÇÕES:
+- Use APENAS as informações reais do produto fornecidas
+- Seja específico, persuasivo e focado em vendas
+- Responda de forma amigável e profissional
+- Conduza naturalmente para a compra
+- Use emojis para tornar a conversa mais envolvente
+
+Pergunta do cliente: ${userMessage}`;
+
+    
+    // ===== Conversational Intelligence v6.1 (short, natural, stepwise, ends with question) =====
     const systemPrompt = `Você é um assistente de vendas CONCISO e humano. Regras:
 - Responda curto (2–6 frases), direto e natural, sem "textão publicitário".
 - Construa em etapas: ofereça próximos passos OU opções curtas; só aprofunde se o usuário pedir.
@@ -718,10 +735,12 @@ Benefícios: ${Array.isArray(pageData.benefits)?pageData.benefits.join(', '):pag
 Provas sociais: ${Array.isArray(pageData.testimonials)?pageData.testimonials.join(' | '):pageData.testimonials}
 CTA: ${pageData.cta}`;
 
-    const messages = [
-      { role: "system", content: systemPrompt },
-      ...conversationHistory
-    ];
+    const groqConversationHistory = buildConversationHistory(conversation);.map(m => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.message
+    }));
+
+    const messages = [{ role: 'system', content: systemPrompt }, ...conversationHistory, { role: 'user', content: userMessage }];
 
     let aiResponse = '';
     try {
@@ -740,13 +759,14 @@ CTA: ${pageData.cta}`;
 
     aiResponse = ensureConversationalStyle(aiResponse);
 
-    aiResponse = ensureConversationalStyle(aiResponse);
+    // Adicionar resposta da IA ao histórico
     conversation.push({ role: 'assistant', message: aiResponse, timestamp: Date.now() });
     conversationCache.set(conversationId, conversation);
     return aiResponse;
-  } catch (error) {
+    } catch (error) {
     logger.error('Erro na geração de resposta IA:', error);
     
+    // SUPER FALLBACK: Resposta específica e persuasiva
     const fallbackResponse = `Olá! 🔥 **Sobre o "${pageData.title}":**\n\n${pageData.description}\n\n💰 **Investimento:** ${pageData.price}\n\n✅ **Principais benefícios:**\n${pageData.benefits.map(benefit => `• ${benefit}`).join('\n')}\n\n💬 **Depoimentos:** ${pageData.testimonials.slice(0,2).join(' | ')}\n\n🚀 **${pageData.cta}**\n\n**Como posso te ajudar mais?** Posso esclarecer sobre preços, benefícios, garantias ou processo de compra!`;
 
     return fallbackResponse;
@@ -937,7 +957,13 @@ function generateChatbotHTML(pageData, robotName, customInstructions = '') {
         <div class="chat-messages" id="chatMessages">
             <div class="message bot">
                 <div class="message-content">
-                    ${robotName} pronto. Pergunte sobre preço, benefícios ou funcionamento.
+                    Olá! 👋 Sou o ${robotName}, seu assistente especializado em "${pageData.title}". 
+                    
+                    Como posso te ajudar hoje? Posso responder sobre:
+                    • Preços e formas de pagamento
+                    • Benefícios e características
+                    • Depoimentos de clientes
+                    • Processo de compra
                     ${customInstructions ? '\n\n' + customInstructions : ''}
                 </div>
             </div>
@@ -994,7 +1020,7 @@ function generateChatbotHTML(pageData, robotName, customInstructions = '') {
             showTyping();
             
             try {
-                const response = safeDeclare("response", await fetch('/chat-universal', {
+                const response = await fetch('/chat-universal', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -1059,7 +1085,7 @@ function generateUniversalHTML(url, robotName) {
     const out = document.getElementById('out');
     if(!q){alert('Escreva sua pergunta'); return;}
     out.textContent = 'Pensando...';
-    const r = await fetch('/chat-universal', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: '${url}', message: q })));
+    const r = await fetch('/chat-universal', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url: '${url}', message: q })});
     const data = await r.json();
     out.textContent = data.success ? data.answer : ('Erro: '+(data.error||'falha'));
   }
@@ -1159,7 +1185,7 @@ app.post('/chat-universal', async (req, res) => {
 
     logger.info(`Chat: ${robotName} - ${message}`);
     
-    const response = safeDeclare("response",  safeDeclare("response", await generateAIResponse(message, pageData, conversationId)));
+    const response = await generateAIResponse(message, pageData, conversationId);
     
     res.json({ 
       success: true, 

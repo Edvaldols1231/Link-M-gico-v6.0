@@ -478,6 +478,11 @@
                 <input type="url" id="salesUrl" placeholder="https://www.arsenalsecretodosceos.com.br/Nutrileads" required>
             </div>
             
+            <div class="form-group">
+                <label for="customInstructions">💡 Instruções Personalizadas (opcional):</label>
+                <textarea id="customInstructions" placeholder="Adicione instruções específicas para o chatbot, como tom de voz, informações extras, etc." rows="4"></textarea>
+            </div>
+            
             <button type="submit" class="btn">🚀 Ativar Chatbot Inteligente ✅ Chat</button>
         </form>
         
@@ -504,11 +509,6 @@
             <div class="extracted-data" id="extractedData">
                 <h3>📊 Dados Extraídos:</h3>
                 <p id="extractedSummary"></p>
-                <p id="extractedTitle"></p>
-                <p id="extractedDescription"></p>
-                <p id="extractedPrice"></p>
-                <p id="extractedBenefits"></p>
-                <p id="extractedCTA"></p>
             </div>
         </div>
         
@@ -537,7 +537,7 @@
             
             const robotName = document.getElementById('robotName').value;
             const salesUrl = document.getElementById('salesUrl').value;
-            const customInstructions = ''; // Instruções personalizadas sempre vazias
+            const customInstructions = document.getElementById('customInstructions').value || '';
             
             // Mostrar loading
             document.getElementById('loading').style.display = 'block';
@@ -550,7 +550,10 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ url: salesUrl })
+                    body: JSON.stringify({ 
+                        url: salesUrl,
+                        instructions: customInstructions
+                    })
                 });
                 
                 const extractData = await response.json();
@@ -576,11 +579,6 @@
                 document.getElementById("result").style.display = "block";
                 document.getElementById("successMessage").style.display = "block";
                 document.getElementById("extractedSummary").innerHTML = `<strong>Resumo:</strong> ${extractedPageData.summary || 'Resumo não disponível'}`;
-                document.getElementById("extractedTitle").innerHTML = `<strong>Título:</strong> ${extractedPageData.title}`;
-                document.getElementById("extractedDescription").innerHTML = `<strong>Descrição:</strong> ${extractedPageData.description}`;
-                document.getElementById("extractedPrice").innerHTML = `<strong>Preço:</strong> ${extractedPageData.price}`;
-                document.getElementById("extractedBenefits").innerHTML = `<strong>Benefícios:</strong> ${extractedPageData.benefits.join(", ")}`;
-                document.getElementById("extractedCTA").innerHTML = `<strong>CTA:</strong> ${extractedPageData.cta}`;
                 document.getElementById("extractedData").style.display = "block";
                 
                 // Configurar link do chatbot
@@ -588,7 +586,7 @@
                 document.getElementById("chatbotLink").textContent = "Clique aqui para acessar";
                 
                 // Abrir chatbot em nova aba
-                window.open(`chat.html?name=${encodeURIComponent(robotName)}&url=${encodeURIComponent(salesUrl)}`, "_blank");
+                window.open(`chat.html?name=${encodeURIComponent(robotName)}&url=${encodeURIComponent(salesUrl)}&instructions=${encodeURIComponent(customInstructions)}`, "_blank");
                 
             } catch (error) {
                 alert('Erro ao criar chatbot: ' + error.message);
