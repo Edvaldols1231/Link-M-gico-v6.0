@@ -881,10 +881,7 @@ function generateChatbotHTML(pageData, robotName, customInstructions = '') {
             <p>Assistente Inteligente para Vendas</p>
         </div>
         
-        <div class="product-info">
-            <div class="product-title">${pageData.title}</div>
-            <div class="product-price">${pageData.price}</div>
-        </div>
+        
         
         <div class="chat-messages" id="chatMessages">
             <div class="message bot">
