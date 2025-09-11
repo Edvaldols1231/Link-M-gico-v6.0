@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pt-br"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LinkMágico • Chat Universal</title>
+<style>
+body{font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#6a11cb,#2575fc);margin:0}
+.card{background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:18px;max-width:840px;width:94%}
+.row{display:flex;gap:12px}
+.row>div{flex:1}
+input{width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:10px}
+button{background:#6a11cb;border:0;color:#fff;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer}
+#out{white-space:pre-wrap;border:1px dashed #cbd5e1;border-radius:10px;padding:12px;background:#f8fafc;min-height:72px}
+small{color:#64748b}
+</style>
+<div class="card">
+<h2>Chat Universal (curto, objetivo e sem invenções)</h2>
+<div class="row"><div><input id="url" placeholder="URL da página"></div><div><input id="q" placeholder="Pergunta objetiva"></div></div>
+<p><small>Políticas: máx. 3 frases curtas ou 5 bullets simples • responde apenas com o texto da página • transparência quando faltar info.</small></p>
+<button id="ask">Perguntar</button>
+<h3>Resposta</h3><div id="out"></div>
+</div>
+<script>
+document.getElementById('ask').onclick = async () => {
+  const url = document.getElementById('url').value.trim();
+  const message = document.getElementById('q').value.trim();
+  if(!url||!message){alert('Informe URL e pergunta'); return;}
+  const out = document.getElementById('out'); out.textContent = 'Pensando...';
+  const r = await fetch('/chat-universal', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url, message})});
+  const data = await r.json();
+  out.textContent = data.success ? data.answer : ('Erro: '+(data.error||'falha'));
+};
+</script>
