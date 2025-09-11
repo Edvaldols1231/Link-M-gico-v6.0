@@ -566,7 +566,19 @@ app.post('/chat-universal', async (req, res) => {
 
     const conversation = []; // ephemeral; can be extended to persistent store
     const reply = await generateAIResponse(message, pd, conversation, instructions);
-    return res.json({ success: true, response: reply });
+
+    // 🔑 Força sempre o botão de link no final
+    let finalReply = reply;
+    try {
+      if (pd && pd.url && !String(finalReply).includes(pd.url)) {
+        finalReply = `${finalReply}\n\n${pd.url}`;
+      }
+    } catch (e) {
+      // If something unexpected happens when checking/concatenating, fall back to original reply
+      logger.warn('Erro ao forçar inclusão do link no final da resposta', e && e.message ? e.message : e);
+    }
+
+    return res.json({ success: true, response: finalReply });
   } catch (err) {
     logger.error('chat-universal error', err && err.message ? err.message : err);
     return res.status(500).json({ success: false, error: 'erro interno ao gerar resposta' });
