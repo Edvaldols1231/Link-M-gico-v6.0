@@ -3,7 +3,8 @@
  *
  * Observações:
  * - Integração das funções e lógica fornecidas pelo usuário com o server anexo.
- * - Mantive extração robusta, cache, rotas, fallback entre LLMs e UI embarcada.
+ * - Extração robusta: axios + cheerio, fallback com Puppeteer para páginas dinâmicas.
+ * - Mantive cache, rotas, fallback entre LLMs (GROQ -> OpenAI -> OpenRouter) e UI embarcada.
  * - Pronto para rodar no Render (ajuste variáveis de ambiente conforme necessário).
  */
 
@@ -16,6 +17,15 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const path = require('path');
 const fs = require('fs');
+
+// Puppeteer for dynamic-render fallback
+let puppeteer;
+try {
+  puppeteer = require('puppeteer');
+} catch (e) {
+  // If puppeteer is not installed, we will log and continue — fallback won't be available.
+  puppeteer = null;
+}
 
 const app = express();
 
@@ -95,8 +105,6 @@ function findListItemsFromText(text) {
 }
 
 // ===== User-provided logic (integrated & adjusted) =====
-
-// Replaced/adjusted versions of detection and instruction parsing per user's provided code.
 
 // Detecta pedido de link
 function userAskedForLink(q) {
@@ -314,25 +322,54 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
   }
 }
 
-// ===== Extraction (robust) =====
+// ===== Extraction (robust + puppeteer fallback) =====
 const dataCache = new Map();
 const CACHE_TTL = 60 * 60 * 1000; // 1h
 
+/**
+ * extractCleanTextFromHTML(html)
+ * - Cheerio-based extraction of textual blocks from an HTML string.
+ * - Captures headings, paragraphs, lists, spans, buttons, divs, blockquotes, strong/em.
+ * - Returns a de-duplicated, normalized multi-line string.
+ */
 function extractCleanTextFromHTML(html) {
   try {
-    const $ = cheerio.load(html);
-    $('script,style,noscript').remove();
+    const $ = cheerio.load(html || '');
+    $('script,style,noscript,iframe').remove();
+
+    const selectors = [
+      'h1','h2','h3','h4','h5','h6',
+      'p','li','span','div','button',
+      'strong','em','blockquote','a'
+    ];
     const blocks = [];
-    $('h1,h2,h3,h4,h5,h6,p,li,span,strong,em,blockquote').each((i, el) => {
-      const txt = normalizeText($(el).text());
-      if (txt && txt.length > 10 && txt.length < 1000) blocks.push(txt);
-    });
-    return uniqueLines(blocks.join('\n'));
+    for (const sel of selectors) {
+      $(sel).each((i, el) => {
+        const txt = normalizeText($(el).text() || '');
+        // ignore very short boilerplate (like "read more", "saiba mais")
+        if (txt && txt.length > 10 && txt.length < 2000) blocks.push(txt);
+      });
+    }
+
+    // Also grab meta description if present
+    const metaDesc = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '';
+    if (metaDesc && metaDesc.trim().length > 20) blocks.unshift(normalizeText(metaDesc.trim()));
+
+    // De-duplicate and join
+    const unique = [...new Set(blocks.map(b => b.trim()).filter(Boolean))];
+    return unique.join('\n');
   } catch (e) {
+    logger.warn('extractCleanTextFromHTML error', e && e.message ? e.message : e);
     return '';
   }
 }
 
+/**
+ * extractPageData(url)
+ * - Primary: axios + cheerio extraction
+ * - Fallback: puppeteer rendering -> document.body.innerText
+ * - Fills: title, description, price, benefits[], testimonials[], cta, summary, cleanText, url
+ */
 async function extractPageData(url) {
   try {
     if (!url) throw new Error('url vazio');
@@ -344,77 +381,180 @@ async function extractPageData(url) {
       title: '', description: '', price: '', benefits: [], testimonials: [], cta: '', summary: '', cleanText: '', url
     };
 
-    const res = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8'
-      },
-      timeout: 15000,
-      maxRedirects: 5,
-      validateStatus: status => status >= 200 && status < 400
-    });
-
-    const finalUrl = (res.request && res.request.res && res.request.res.responseUrl) || url;
-    if (finalUrl && finalUrl !== url) extractedData.url = finalUrl;
-
-    if (res.status === 200 && res.data) {
-      const $ = cheerio.load(res.data);
-      $('script, style, noscript').remove();
-
-      extractedData.cleanText = extractCleanTextFromHTML(res.data);
-
-      // Title
-      const titleCandidates = ['h1', 'meta[property="og:title"]', 'meta[name="twitter:title"]', 'title'];
-      for (const sel of titleCandidates) {
-        const el = $(sel).first();
-        const t = (el && (el.attr('content') || el.text())) || '';
-        if (t && t.trim().length > 5) { extractedData.title = t.trim(); break; }
-      }
-
-      // Description
-      const descCandidates = ['meta[name="description"]', 'meta[property="og:description"]', '.description', 'article p', 'main p'];
-      for (const sel of descCandidates) {
-        const el = $(sel).first();
-        const t = (el && (el.attr('content') || el.text())) || '';
-        if (t && t.trim().length > 40) { extractedData.description = t.trim().substring(0, 1000); break; }
-      }
-
-      // Price heuristic
-      const bodyText = $('body').text() || '';
-      const priceRegex = /(R\$\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?|\$\s*\d+(?:[.,]\d+)?|USD\s*\d+)/gi;
-      const priceMatches = bodyText.match(priceRegex);
-      if (priceMatches && priceMatches.length) extractedData.price = priceMatches[0];
-
-      // Summary
-      const bt = bodyText.replace(/\s+/g, ' ').trim();
-      const sents = bt.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
-      extractedData.summary = sents.slice(0, 4).join('. ').substring(0, 600) + (sents.length ? '...' : '');
-
-      // benefits
-      const benefits = [];
-      $('ul li, .benefits li, .features li, li').each((i, el) => {
-        if (benefits.length >= 6) return;
-        const txt = normalizeText($(el).text() || '');
-        if (txt && txt.length > 20) benefits.push(txt);
+    // first attempt: axios + cheerio
+    let html = '';
+    try {
+      const res = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8'
+        },
+        timeout: 15000,
+        maxRedirects: 5,
+        validateStatus: status => status >= 200 && status < 400
       });
-      if (benefits.length) extractedData.benefits = benefits;
+      html = res.data || '';
+      const finalUrl = (res.request && res.request.res && res.request.res.responseUrl) || url;
+      if (finalUrl && finalUrl !== url) extractedData.url = finalUrl;
+    } catch (err) {
+      logger.warn('axios fetch failed for ' + url + ' — will try puppeteer if available. Error: ' + (err && err.message ? err.message : err));
+      html = '';
+    }
 
-      // testimonials
-      const testimonials = [];
-      $('.testimonial, .testimonials, .depoimentos, .review').each((i, el) => {
-        if (testimonials.length >= 3) return;
-        const txt = normalizeText($(el).text() || '');
-        if (txt && txt.length > 30) testimonials.push(txt);
-      });
-      if (testimonials.length) extractedData.testimonials = testimonials;
+    // If we got HTML, try to parse
+    if (html && html.length > 50) {
+      try {
+        const $ = cheerio.load(html);
+        $('script, style, noscript, iframe').remove();
 
-      // CTA
-      const ctaEl = $('a, button').filter((i, el) => {
-        const txt = ($(el).text() || '').toLowerCase();
-        return /comprar|quero|adquirir|saiba mais|inscreva-se|assine|compre|agora|garanta/.test(txt);
-      }).first();
-      if (ctaEl && ctaEl.length) extractedData.cta = normalizeText(ctaEl.text()).substring(0, 200);
+        // Title
+        const titleCandidates = ['h1', 'meta[property="og:title"]', 'meta[name="twitter:title"]', 'title'];
+        for (const sel of titleCandidates) {
+          const el = $(sel).first();
+          const t = (el && (el.attr('content') || el.text())) || '';
+          if (t && t.trim().length > 5) { extractedData.title = t.trim(); break; }
+        }
+
+        // Description
+        const descCandidates = ['meta[name="description"]', 'meta[property="og:description"]', '.description', 'article p', 'main p'];
+        for (const sel of descCandidates) {
+          const el = $(sel).first();
+          const t = (el && (el.attr('content') || el.text())) || '';
+          if (t && t.trim().length > 40) { extractedData.description = t.trim().substring(0, 1000); break; }
+        }
+
+        // Clean text blocks
+        const clean = extractCleanTextFromHTML(html);
+        extractedData.cleanText = clean;
+
+        // Price heuristic
+        const bodyText = $('body').text() || '';
+        const priceRegex = /(R\$\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?|\$\s*\d+(?:[.,]\d+)?|USD\s*\d+)/gi;
+        const priceMatches = bodyText.match(priceRegex);
+        if (priceMatches && priceMatches.length) extractedData.price = priceMatches[0];
+
+        // Summary
+        const bt = bodyText.replace(/\s+/g, ' ').trim();
+        const sents = bt.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
+        extractedData.summary = sents.slice(0, 4).join('. ').substring(0, 600) + (sents.length ? '...' : '');
+
+        // benefits
+        const benefits = [];
+        $('ul li, .benefits li, .features li, li').each((i, el) => {
+          if (benefits.length >= 6) return;
+          const txt = normalizeText($(el).text() || '');
+          if (txt && txt.length > 20) benefits.push(txt);
+        });
+        if (benefits.length) extractedData.benefits = benefits;
+
+        // testimonials
+        const testimonials = [];
+        $('.testimonial, .testimonials, .depoimentos, .review').each((i, el) => {
+          if (testimonials.length >= 4) return;
+          const txt = normalizeText($(el).text() || '');
+          if (txt && txt.length > 30) testimonials.push(txt);
+        });
+        if (testimonials.length) extractedData.testimonials = testimonials;
+
+        // CTA
+        const ctaEl = $('a, button').filter((i, el) => {
+          const txt = ($(el).text() || '').toLowerCase();
+          return /comprar|quero|adquirir|saiba mais|inscreva-se|assine|compre|agora|garanta/.test(txt);
+        }).first();
+        if (ctaEl && ctaEl.length) extractedData.cta = normalizeText(ctaEl.text()).substring(0, 200);
+      } catch (e) {
+        logger.warn('cheerio parse failed', e && e.message ? e.message : e);
+      }
+    }
+
+    // If we have little content, attempt Puppeteer (dynamic rendering)
+    const minimalAcceptableLength = 220; // tuneable: if cleanText smaller than this, use puppeteer
+    if ((!extractedData.cleanText || extractedData.cleanText.length < minimalAcceptableLength) && puppeteer) {
+      logger.info(`cleanText small (${(extractedData.cleanText||'').length}) - launching Puppeteer for ${url}`);
+      let browser = null;
+      try {
+        browser = await puppeteer.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+          defaultViewport: { width: 1200, height: 800 }
+        });
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36');
+        await page.setRequestInterception(true);
+
+        page.on('request', req => {
+          // block heavy resources optionally to speed up
+          const resourceType = req.resourceType();
+          if (['image','stylesheet','font','media'].includes(resourceType)) req.abort();
+          else req.continue();
+        });
+
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(e => {
+          logger.warn('puppeteer goto domcontentloaded failed: ' + (e && e.message ? e.message : e));
+        });
+
+        // allow some network idle time if necessary
+        try { await page.waitForTimeout(800); } catch (e) {}
+
+        // evaluate page body text
+        const bodyText = await page.evaluate(() => {
+          // remove scripts from DOM copy
+          const clone = document.cloneNode(true);
+          const scripts = clone.querySelectorAll('script, style, noscript, iframe');
+          scripts.forEach(n => n.remove());
+          return clone.body ? clone.body.innerText : '';
+        });
+
+        const cleaned = normalizeText(String(bodyText || '')).replace(/\s{2,}/g, ' ');
+        // split into lines and dedupe
+        const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
+        const unique = [...new Set(lines)];
+        const finalText = unique.join('\n');
+
+        if (finalText && finalText.length > (extractedData.cleanText || '').length) {
+          extractedData.cleanText = finalText;
+          // attempt to refresh summary/title/price from this content
+          const sents = finalText.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
+          if (!extractedData.title && sents.length) extractedData.title = sents[0].slice(0, 200);
+          if (!extractedData.summary && sents.length) extractedData.summary = sents.slice(0, 4).join('. ').substring(0, 600) + '...';
+          // price detection
+          const priceRegex = /(R\$\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?|\$\s*\d+(?:[.,]\d+)?|USD\s*\d+)/gi;
+          const pm = finalText.match(priceRegex);
+          if (pm && pm.length && !extractedData.price) extractedData.price = pm[0];
+          // attempt to find CTA-like lines
+          const ctaMatch = unique.find(l => /comprar|quero|adquirir|saiba mais|inscreva-se|assine|compre|agora|garanta/i.test(l));
+          if (ctaMatch && !extractedData.cta) extractedData.cta = shortenSentence(ctaMatch, 20);
+          // benefits/testimonials heuristics
+          const candidateBenefits = unique.filter(l => l.length > 30 && l.split(' ').length < 30 && /benef|resultado|transforma|aprende|bônus|bonus|template|checklist|planilha|garantia/i.test(l));
+          if (candidateBenefits.length) extractedData.benefits = candidateBenefits.slice(0, 6);
+        }
+      } catch (puErr) {
+        logger.warn('Puppeteer extraction failed: ' + (puErr && puErr.message ? puErr.message : puErr));
+      } finally {
+        try { if (browser) await browser.close(); } catch (e) {}
+      }
+    } else if ((!extractedData.cleanText || extractedData.cleanText.length < minimalAcceptableLength) && !puppeteer) {
+      logger.warn('Puppeteer not available and cleanText small — extraction may be incomplete for dynamic pages.');
+    }
+
+    // Final normalization: dedupe lines and ensure fields present
+    try {
+      if (extractedData.cleanText) {
+        extractedData.cleanText = uniqueLines(extractedData.cleanText);
+      } else {
+        extractedData.cleanText = '';
+      }
+      if (!extractedData.title && extractedData.cleanText) {
+        const firstLine = extractedData.cleanText.split('\n').find(l => l && l.length > 5);
+        if (firstLine) extractedData.title = firstLine.slice(0, 200);
+      }
+      if (!extractedData.summary && extractedData.cleanText) {
+        const sents = extractedData.cleanText.split(/(?<=[.!?])\s+/).filter(Boolean);
+        extractedData.summary = sents.slice(0, 4).join('. ').slice(0, 600) + (sents.length ? '...' : '');
+      }
+    } catch (e) {
+      logger.warn('final normalization failed', e && e.message ? e.message : e);
     }
 
     dataCache.set(cacheKey, { data: extractedData, timestamp: Date.now() });
@@ -491,7 +631,7 @@ async function generateAIResponse(userMessage, pageData = {}, conversation = [],
   }
   const systemPrompt = systemLines.join('\n');
 
-  const pageSummary = `Resumo da página:\nTítulo: ${pageData.title || ''}\nDescrição: ${pageData.description || ''}\nPreço: ${pageData.price || ''}\nBenefícios: ${Array.isArray(pageData.benefits) ? pageData.benefits.join(', ') : pageData.benefits || ''}\nCTA: ${pageData.cta || ''}\nEvidências (trechos):\n${(pageData.summary || '').slice(0, 2000)}`;
+  const pageSummary = `Resumo da página:\nTítulo: ${pageData.title || ''}\nDescrição: ${pageData.description || ''}\nPreço: ${pageData.price || ''}\nBenefícios: ${Array.isArray(pageData.benefits) ? pageData.benefits.join(', ') : pageData.benefits || ''}\nCTA: ${pageData.cta || ''}\nEvidências (trechos):\n${(pageData.summary || pageData.cleanText || '').slice(0, 2000)}`;
 
   const userPrompt = `${instructions ? 'Instruções do painel: ' + instructions + '\n\n' : ''}${pageSummary}\n\nPergunta do usuário:\n${userMessage}\n\nResponda de forma concisa conforme as regras acima.`;
 
@@ -566,7 +706,19 @@ app.post('/chat-universal', async (req, res) => {
 
     const conversation = []; // ephemeral; can be extended to persistent store
     const reply = await generateAIResponse(message, pd, conversation, instructions);
-    return res.json({ success: true, response: reply });
+
+    // 🔑 Força sempre o botão de link no final
+    let finalReply = reply;
+    try {
+      if (pd && pd.url && !String(finalReply).includes(pd.url)) {
+        finalReply = `${finalReply}\n\n${pd.url}`;
+      }
+    } catch (e) {
+      // If something unexpected happens when checking/concatenating, fall back to original reply
+      logger.warn('Erro ao forçar inclusão do link no final da resposta', e && e.message ? e.message : e);
+    }
+
+    return res.json({ success: true, response: finalReply });
   } catch (err) {
     logger.error('chat-universal error', err && err.message ? err.message : err);
     return res.status(500).json({ success: false, error: 'erro interno ao gerar resposta' });
@@ -625,6 +777,7 @@ function generateChatbotHTML(pageData = {}, robotName = '@Assistente', customIns
 input[type="text"]{flex:1;padding:12px 14px;border-radius:28px;border:1px solid #e9ecef;outline:none}
 button{background:#667eea;color:#fff;border:none;padding:10px 18px;border-radius:28px;cursor:pointer}
 textarea{width:100%;min-height:56px;border-radius:10px;padding:8px;border:1px solid #e9ecef;margin-top:8px}
+.cta-button{display:inline-block;background:#6c5ce7;color:#fff;padding:8px 14px;border-radius:8px;font-weight:700;text-decoration:none;box-shadow:0 6px 18px rgba(0,0,0,0.12)}
 </style>
 </head>
 <body>
@@ -656,16 +809,26 @@ textarea{width:100%;min-height:56px;border-radius:10px;padding:8px;border:1px so
   const robotName = "${safeRobotName}";
   const conversationId = 'chat_' + Date.now();
 
+  function normalizeUrlForCompare(u) {
+    try {
+      if (!u) return '';
+      return String(u).trim().replace(/\/+$/, '').toLowerCase();
+    } catch (e) {
+      return String(u || '').replace(/\/+$/, '').toLowerCase();
+    }
+  }
+
   function addMessage(content, isUser = false){
     const messagesContainer = document.getElementById('chatMessages');
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message ' + (isUser ? 'user' : 'bot');
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
+
     // convert plain URLs into safe clickable anchors (no innerHTML used)
-    
     const urlRegex = /https?:\/\/[^\s]+/g;
     const normalizeUrl = (u) => (typeof u === 'string' ? u.replace(/\/+$/,'') : u);
+
     let lastIndex = 0;
     let match;
     while ((match = urlRegex.exec(content)) !== null) {
@@ -674,26 +837,15 @@ textarea{width:100%;min-height:56px;border-radius:10px;padding:8px;border:1px so
       const url = match[0];
       // If this URL is the official page URL extracted for this session, render as a CTA button
       try {
-        if (typeof pageData !== 'undefined' && pageData && pageData.url && normalizeUrl(url) === normalizeUrl(pageData.url)) {
-const a = document.createElement('a');
-a.href = url;
-a.target = '_blank';
-a.rel = 'noopener noreferrer';
-a.textContent = 'Quero me inscrever agora 🚀';
-a.style.display = 'inline-block';
-a.style.backgroundColor = '#6c5ce7';
-a.style.color = '#fff';
-a.style.padding = '8px 14px';
-a.style.borderRadius = '8px';
-a.style.textDecoration = 'none';
-a.style.fontWeight = '700';
-a.style.marginTop = '8px';
-a.style.marginBottom = '8px';
-a.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
-a.style.cursor = 'pointer';
-// acessibilidade
-a.setAttribute('aria-label', 'Quero me inscrever agora - abre em nova aba');
-contentDiv.appendChild(a);
+        if (typeof pageData !== 'undefined' && pageData && pageData.url && normalizeUrlForCompare(url).includes(normalizeUrlForCompare(pageData.url))) {
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          a.textContent = 'Quero me inscrever agora 🚀';
+          a.className = 'cta-button';
+          a.setAttribute('aria-label', 'Quero me inscrever agora - abre em nova aba');
+          contentDiv.appendChild(a);
         } else {
           const a = document.createElement('a');
           a.href = url;
@@ -703,7 +855,6 @@ contentDiv.appendChild(a);
           contentDiv.appendChild(a);
         }
       } catch (e) {
-        // If anything goes wrong, fall back to plain link text to avoid breaking the UI
         const fallback = document.createElement('a');
         fallback.href = url;
         fallback.target = '_blank';
@@ -713,7 +864,8 @@ contentDiv.appendChild(a);
       }
       lastIndex = urlRegex.lastIndex;
     }
-const remaining = content.slice(lastIndex);
+
+    const remaining = content.slice(lastIndex);
     if (remaining) contentDiv.appendChild(document.createTextNode(remaining));
     messageDiv.appendChild(contentDiv);
     messagesContainer.appendChild(messageDiv);
