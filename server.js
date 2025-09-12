@@ -1,17 +1,17 @@
-/**
- * LinkMágico Chatbot - server.js (integrado, ajustado e completíssimo)
- *
- * Observações:
- * - Arquivo único com extração (axios + cheerio), fallback com Puppeteer (se instalado),
- *   OCR via Tesseract.js (se instalado), orquestração de LLMs (GROQ -> OpenAI -> OpenRouter),
- *   UI minimalista embarcada e endpoints /health, /extract, /chat-universal e /chatbot.
- * - Pronto para rodar em ambientes como Render. Ajuste variáveis de ambiente conforme necessário.
- * - Variáveis de ambiente importantes:
- *    PORT, LOG_LEVEL,
- *    GROQ_API_KEY, GROQ_API_BASE, GROQ_MODEL,
- *    OPENAI_API_KEY, OPENAI_API_BASE, OPENAI_MODEL,
- *    OPENROUTER_API_KEY, OPENROUTER_API_BASE, OPENROUTER_MODEL
- */
+// ================================================================
+// LinkMágico Chatbot - server.js (integrado, ajustado e completíssimo)
+// ================================================================
+// Observações:
+// - Arquivo único com extração (axios + cheerio), fallback com Puppeteer (se instalado),
+//   OCR via Tesseract.js (se instalado), orquestração de LLMs (GROQ -> OpenAI -> OpenRouter),
+//   UI minimalista embarcada e endpoints /health, /extract, /chat-universal, /scrape e /chatbot.
+// - Pronto para rodar em ambientes como Render. Ajuste variáveis de ambiente conforme necessário.
+// - Variáveis de ambiente importantes:
+//    PORT, LOG_LEVEL,
+//    GROQ_API_KEY, GROQ_API_BASE, GROQ_MODEL,
+//    OPENAI_API_KEY, OPENAI_API_BASE, OPENAI_MODEL,
+//    OPENROUTER_API_KEY, OPENROUTER_API_BASE, OPENROUTER_MODEL
+// ================================================================
 
 require('dotenv').config();
 
@@ -23,15 +23,15 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const path = require('path');
 const fs = require('fs');
+const bodyParser = require('body-parser');
+const morgan = require('morgan');
 
-// Optional dependencies
+// Optional dependencies (try/catch to allow lighter deployments)
 let puppeteer = null;
 try {
   puppeteer = require('puppeteer');
 } catch (e) {
-  // Puppeteer not installed — we'll continue but dynamic rendering won't be available.
-  // This is expected in some lighter deployments.
-  // console.warn('Puppeteer not available. Dynamic rendering fallback disabled.');
+  // Puppeteer not installed — dynamic rendering fallback will be unavailable.
 }
 
 let Tesseract = null;
@@ -39,7 +39,6 @@ try {
   Tesseract = require('tesseract.js');
 } catch (e) {
   // Tesseract not installed — OCR will be skipped.
-  // console.warn('Tesseract.js not available. OCR disabled.');
 }
 
 const app = express();
@@ -59,6 +58,8 @@ app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false 
 app.use(cors());
 app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true, limit: '12mb' }));
+app.use(bodyParser.json());
+app.use(morgan('dev'));
 
 // Serve static assets if ./public exists
 const publicDir = path.join(__dirname, 'public');
@@ -224,6 +225,7 @@ function parseInstructions(instructions = '') {
   return { raw: instructions || '' };
 }
 
+// universalAnswer: local fallback for answering using pageData
 function universalAnswer(pageData = {}, question = '', instructions = '') {
   try {
     const salesMode = shouldActivateSalesMode(instructions);
@@ -730,8 +732,49 @@ async function generateAIResponse(userMessage, pageData = {}, conversation = [],
 }
 
 // ===== Routes =====
+
+// Health
 app.get('/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
 
+// New /scrape endpoint (requested block adapted to CommonJS)
+// It will attempt a light extraction (cheerio) and fallback to puppeteer if necessary.
+// Uses extractBonuses to detect "bônus" mentions and returns limited payload.
+function extractBonuses(text) {
+  const bonuses = [];
+  const regex = /(bônus|bonus)[\s:–-]*(.+)/gi;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    bonuses.push(match[0]);
+  }
+  return bonuses;
+}
+
+app.post('/scrape', async (req, res) => {
+  const { url, question } = req.body || {};
+  if (!url) return res.status(400).json({ error: 'URL é obrigatória' });
+
+  try {
+    // lightweight attempt: use extractPageData (already does cheerio and puppeteer fallback)
+    let data = await extractPageData(url);
+
+    // combined text limit
+    const combinedText = normalizeText(`${data.cleanText || ''}\n${(data.imagesText || []).join('\n') || ''}`).slice(0, 20000);
+
+    const bonuses = extractBonuses(combinedText);
+
+    return res.json({
+      url: data.url || url,
+      question: question || null,
+      extracted: combinedText.slice(0, 5000),
+      bonuses
+    });
+  } catch (err) {
+    logger.error('Error on /scrape: ' + (err && err.message ? err.message : err));
+    return res.status(500).json({ error: 'Falha ao processar URL' });
+  }
+});
+
+// /extract - returns full extracted page data (cached)
 app.post('/extract', async (req, res) => {
   try {
     const { url } = req.body || {};
@@ -744,6 +787,7 @@ app.post('/extract', async (req, res) => {
   }
 });
 
+// /chat-universal - main chat endpoint used by the embedded UI
 app.post('/chat-universal', async (req, res) => {
   try {
     const { message, pageData, url, conversationId, instructions = '', robotName } = req.body || {};
@@ -755,7 +799,7 @@ app.post('/chat-universal', async (req, res) => {
       pd = await extractPageData(url);
     }
 
-    const conversation = []; // ephemeral; can be extended to persistent store
+    const conversation = []; // ephemeral; extend to persistent store if needed
     const reply = await generateAIResponse(message, pd, conversation, instructions);
 
     // Force inclusion of page link at the end if not already present
