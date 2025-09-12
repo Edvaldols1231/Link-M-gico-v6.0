@@ -1,14 +1,20 @@
 /**
- * LinkMágico Chatbot - server.js (arquivo integrado e ajustado)
+ * LinkMágico Chatbot - server.js (integrado, ajustado e completíssimo)
  *
  * Observações:
- * - Integração das funções e lógica fornecidas pelo usuário com o server anexo.
- * - Extração robusta: axios + cheerio, fallback com Puppeteer para páginas dinâmicas.
- * - Mantive cache, rotas, fallback entre LLMs (GROQ -> OpenAI -> OpenRouter) e UI embarcada.
- * - Pronto para rodar no Render (ajuste variáveis de ambiente conforme necessário).
+ * - Arquivo único com extração (axios + cheerio), fallback com Puppeteer (se instalado),
+ *   OCR via Tesseract.js (se instalado), orquestração de LLMs (GROQ -> OpenAI -> OpenRouter),
+ *   UI minimalista embarcada e endpoints /health, /extract, /chat-universal e /chatbot.
+ * - Pronto para rodar em ambientes como Render. Ajuste variáveis de ambiente conforme necessário.
+ * - Variáveis de ambiente importantes:
+ *    PORT, LOG_LEVEL,
+ *    GROQ_API_KEY, GROQ_API_BASE, GROQ_MODEL,
+ *    OPENAI_API_KEY, OPENAI_API_BASE, OPENAI_MODEL,
+ *    OPENROUTER_API_KEY, OPENROUTER_API_BASE, OPENROUTER_MODEL
  */
 
 require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -18,13 +24,22 @@ const cheerio = require('cheerio');
 const path = require('path');
 const fs = require('fs');
 
-// Puppeteer for dynamic-render fallback
-let puppeteer;
+// Optional dependencies
+let puppeteer = null;
 try {
   puppeteer = require('puppeteer');
 } catch (e) {
-  // If puppeteer is not installed, we will log and continue — fallback won't be available.
-  puppeteer = null;
+  // Puppeteer not installed — we'll continue but dynamic rendering won't be available.
+  // This is expected in some lighter deployments.
+  // console.warn('Puppeteer not available. Dynamic rendering fallback disabled.');
+}
+
+let Tesseract = null;
+try {
+  Tesseract = require('tesseract.js');
+} catch (e) {
+  // Tesseract not installed — OCR will be skipped.
+  // console.warn('Tesseract.js not available. OCR disabled.');
 }
 
 const app = express();
@@ -52,7 +67,9 @@ if (fs.existsSync(publicDir)) {
 }
 
 // ===== Utilities =====
-function normalizeText(t) { return (t || '').replace(/\s+/g, ' ').trim(); }
+function normalizeText(t) {
+  return (t || '').replace(/\s+/g, ' ').trim();
+}
 function clampSentences(text, max = 2) {
   if (!text) return '';
   const sents = normalizeText(text).split(/(?<=[.!?])\s+/);
@@ -89,7 +106,6 @@ function tokenize(s) {
 // Helper: find list-like lines from text (used in universalAnswer)
 function findListItemsFromText(text) {
   if (!text) return [];
-  // heuristic: lines that start with bullet chars or lines with "•" or lines separated by \n that are relatively short
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   const items = [];
   for (const l of lines) {
@@ -97,41 +113,66 @@ function findListItemsFromText(text) {
       items.push(l.replace(/^(?:-|\u2022|\*|\d+\.)\s+/, ''));
       continue;
     }
-    // short lines with verbs/nouns: heuristics
     if (l.length < 140 && l.split(' ').length <= 20) items.push(l);
     if (items.length >= 12) break;
   }
   return uniqueLines(items.join('\n')).split('\n').filter(Boolean);
 }
 
-// ===== User-provided logic (integrated & adjusted) =====
-
-// Detecta pedido de link
-function userAskedForLink(q) {
-  if (!q) return false;
-  return /\blink|página de vendas|página|site|inscriç|inscrição|inscrever|comprar|quero comprar|quero me inscrever|link da página|página de vendas\b/i.test(q);
+// ===== OCR (optional, uses Tesseract if installed) =====
+async function extractTextFromImages(urls) {
+  const results = [];
+  if (!Tesseract) {
+    logger.info('OCR skipped: Tesseract.js not available.');
+    return results;
+  }
+  for (const u of urls) {
+    try {
+      const res = await axios.get(u, { responseType: 'arraybuffer', timeout: 20000 });
+      const buffer = Buffer.from(res.data, 'binary');
+      const { data: { text } } = await Tesseract.recognize(buffer, 'por+eng');
+      if (text && text.trim().length > 5) {
+        results.push(text.trim());
+      }
+    } catch (err) {
+      logger.warn("OCR falhou em " + u + " -> " + (err && err.message ? err.message : String(err)));
+    }
+  }
+  return results;
 }
 
-// Sales mode detection (user-supplied simpler variant, integrated)
-function shouldActivateSalesMode(instructions = '') {
-  if (!instructions) return false;
-  // Allow both a simple regex toggle and presence of sales-like words
+// ===== Text extraction helpers (Cheerio + Puppeteer fallback) =====
+function extractCleanTextFromHTML(html) {
   try {
-    const txt = String(instructions || '');
-    if (/sales_mode:on/i.test(txt)) return true;
-    if (/consultivo|vendas|venda|call[- ]?to[- ]?action|cta|sempre envie o link|finalize com o cta/i.test(txt)) return true;
-    return false;
+    const $ = cheerio.load(html || '');
+    $('script,style,noscript,iframe').remove();
+
+    const selectors = [
+      'h1','h2','h3','h4','h5','h6',
+      'p','li','span','div','button',
+      'strong','em','blockquote','a'
+    ];
+    const blocks = [];
+    for (const sel of selectors) {
+      $(sel).each((i, el) => {
+        const txt = normalizeText($(el).text() || '');
+        if (txt && txt.length > 10 && txt.length < 2000) blocks.push(txt);
+      });
+    }
+
+    // Also grab meta description if present
+    const metaDesc = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '';
+    if (metaDesc && metaDesc.trim().length > 20) blocks.unshift(normalizeText(metaDesc.trim()));
+
+    const unique = [...new Set(blocks.map(b => b.trim()).filter(Boolean))];
+    return unique.join('\n');
   } catch (e) {
-    return false;
+    logger.warn('extractCleanTextFromHTML error', e && e.message ? e.message : e);
+    return '';
   }
 }
 
-// Simple parseInstructions (keeps raw)
-function parseInstructions(instructions = '') {
-  return { raw: instructions || '' };
-}
-
-// ===== Price detection helpers (keep robust logic) =====
+// ===== Price detection helpers =====
 function detectPricesFromSource(source = '') {
   if (!source) return null;
   const priceRegex = /(?:r\$\s*)?(\d{1,3}(?:[.\s]\d{3})*(?:[.,]\d{2})|\d+(?:[.,]\d{2})?)/gi;
@@ -159,19 +200,39 @@ function formatBRL(v) {
   }
 }
 
-// ===== Universal answer (user-provided logic, integrated) =====
+// ===== User-provided logic & heuristics (integrated) =====
 const NOT_FOUND_MSG = "Não encontrei essa informação nesta página. Quer que eu mostre o link direto?";
+
+function userAskedForLink(q) {
+  if (!q) return false;
+  return /\blink|página de vendas|página|site|inscriç|inscrição|inscrever|comprar|quero comprar|quero me inscrever|link da página|página de vendas\b/i.test(q);
+}
+
+function shouldActivateSalesMode(instructions = '') {
+  if (!instructions) return false;
+  try {
+    const txt = String(instructions || '');
+    if (/sales_mode:on/i.test(txt)) return true;
+    if (/consultivo|vendas|venda|call[- ]?to[- ]?action|cta|sempre envie o link|finalize com o cta/i.test(txt)) return true;
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+function parseInstructions(instructions = '') {
+  return { raw: instructions || '' };
+}
 
 function universalAnswer(pageData = {}, question = '', instructions = '') {
   try {
     const salesMode = shouldActivateSalesMode(instructions);
 
-    // --- Override se o usuário pedir link
     if (userAskedForLink(question) && pageData && pageData.url) {
       if (salesMode) {
         return {
           mode: 'direct_link',
-          answer: `🌟 Aqui está o link oficial: ${pageData.url}\nQuer que eu te envie o passo a passo para garantir agora? 🚀`,
+          answer: `🌟 Aqui está o link oficial: ${pageData.url}\nQuer que eu te envie o passo a passo para garantir agora? 🚀`
         };
       }
       return { mode: 'direct_link', answer: `Aqui está o link oficial: ${pageData.url}` };
@@ -192,7 +253,6 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
       return { mode: 'not_found', answer: NOT_FOUND_MSG };
     }
 
-    // Sales-mode objection handling (similar to user-provided logic)
     if (salesMode) {
       const q = (question || '').toLowerCase();
       const priceInfo = detectPricesFromSource(source);
@@ -242,7 +302,6 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
       }
     }
 
-    // Default concise mode (question understanding + extraction)
     const sentences = source.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
     const qTokens = tokenize(question || '');
     const instr = instrOpts;
@@ -258,7 +317,6 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
       return { mode: 'paragraph', answer: clampSentences(opener + bullets, instr.maxSentences || 2 + 1) };
     }
 
-    // Score sentences by overlap with question tokens
     const scored = [];
     sentences.forEach((s, idx) => {
       const toks = tokenize(s);
@@ -322,54 +380,10 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
   }
 }
 
-// ===== Extraction (robust + puppeteer fallback) =====
+// ===== Extraction with caching =====
 const dataCache = new Map();
 const CACHE_TTL = 60 * 60 * 1000; // 1h
 
-/**
- * extractCleanTextFromHTML(html)
- * - Cheerio-based extraction of textual blocks from an HTML string.
- * - Captures headings, paragraphs, lists, spans, buttons, divs, blockquotes, strong/em.
- * - Returns a de-duplicated, normalized multi-line string.
- */
-function extractCleanTextFromHTML(html) {
-  try {
-    const $ = cheerio.load(html || '');
-    $('script,style,noscript,iframe').remove();
-
-    const selectors = [
-      'h1','h2','h3','h4','h5','h6',
-      'p','li','span','div','button',
-      'strong','em','blockquote','a'
-    ];
-    const blocks = [];
-    for (const sel of selectors) {
-      $(sel).each((i, el) => {
-        const txt = normalizeText($(el).text() || '');
-        // ignore very short boilerplate (like "read more", "saiba mais")
-        if (txt && txt.length > 10 && txt.length < 2000) blocks.push(txt);
-      });
-    }
-
-    // Also grab meta description if present
-    const metaDesc = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '';
-    if (metaDesc && metaDesc.trim().length > 20) blocks.unshift(normalizeText(metaDesc.trim()));
-
-    // De-duplicate and join
-    const unique = [...new Set(blocks.map(b => b.trim()).filter(Boolean))];
-    return unique.join('\n');
-  } catch (e) {
-    logger.warn('extractCleanTextFromHTML error', e && e.message ? e.message : e);
-    return '';
-  }
-}
-
-/**
- * extractPageData(url)
- * - Primary: axios + cheerio extraction
- * - Fallback: puppeteer rendering -> document.body.innerText
- * - Fills: title, description, price, benefits[], testimonials[], cta, summary, cleanText, url
- */
 async function extractPageData(url) {
   try {
     if (!url) throw new Error('url vazio');
@@ -378,7 +392,16 @@ async function extractPageData(url) {
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) return cached.data;
 
     const extractedData = {
-      title: '', description: '', price: '', benefits: [], testimonials: [], cta: '', summary: '', cleanText: '', url
+      title: '',
+      description: '',
+      price: '',
+      benefits: [],
+      testimonials: [],
+      cta: '',
+      summary: '',
+      cleanText: '',
+      imagesText: [],
+      url
     };
 
     // first attempt: axios + cheerio
@@ -408,7 +431,7 @@ async function extractPageData(url) {
         const $ = cheerio.load(html);
         $('script, style, noscript, iframe').remove();
 
-        // Title
+        // Title candidates
         const titleCandidates = ['h1', 'meta[property="og:title"]', 'meta[name="twitter:title"]', 'title'];
         for (const sel of titleCandidates) {
           const el = $(sel).first();
@@ -416,7 +439,7 @@ async function extractPageData(url) {
           if (t && t.trim().length > 5) { extractedData.title = t.trim(); break; }
         }
 
-        // Description
+        // Description candidates
         const descCandidates = ['meta[name="description"]', 'meta[property="og:description"]', '.description', 'article p', 'main p'];
         for (const sel of descCandidates) {
           const el = $(sel).first();
@@ -463,13 +486,14 @@ async function extractPageData(url) {
           return /comprar|quero|adquirir|saiba mais|inscreva-se|assine|compre|agora|garanta/.test(txt);
         }).first();
         if (ctaEl && ctaEl.length) extractedData.cta = normalizeText(ctaEl.text()).substring(0, 200);
+
       } catch (e) {
         logger.warn('cheerio parse failed', e && e.message ? e.message : e);
       }
     }
 
-    // If we have little content, attempt Puppeteer (dynamic rendering)
-    const minimalAcceptableLength = 220; // tuneable: if cleanText smaller than this, use puppeteer
+    // If cleanText is small, attempt Puppeteer (if available)
+    const minimalAcceptableLength = 220;
     if ((!extractedData.cleanText || extractedData.cleanText.length < minimalAcceptableLength) && puppeteer) {
       logger.info(`cleanText small (${(extractedData.cleanText||'').length}) - launching Puppeteer for ${url}`);
       let browser = null;
@@ -484,9 +508,8 @@ async function extractPageData(url) {
         await page.setRequestInterception(true);
 
         page.on('request', req => {
-          // block heavy resources optionally to speed up
           const resourceType = req.resourceType();
-          if (['image','stylesheet','font','media'].includes(resourceType)) req.abort();
+          if (['stylesheet', 'font'].includes(resourceType)) req.abort();
           else req.continue();
         });
 
@@ -494,12 +517,9 @@ async function extractPageData(url) {
           logger.warn('puppeteer goto domcontentloaded failed: ' + (e && e.message ? e.message : e));
         });
 
-        // allow some network idle time if necessary
         try { await page.waitForTimeout(800); } catch (e) {}
 
-        // evaluate page body text
         const bodyText = await page.evaluate(() => {
-          // remove scripts from DOM copy
           const clone = document.cloneNode(true);
           const scripts = clone.querySelectorAll('script, style, noscript, iframe');
           scripts.forEach(n => n.remove());
@@ -507,28 +527,42 @@ async function extractPageData(url) {
         });
 
         const cleaned = normalizeText(String(bodyText || '')).replace(/\s{2,}/g, ' ');
-        // split into lines and dedupe
         const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
         const unique = [...new Set(lines)];
         const finalText = unique.join('\n');
 
         if (finalText && finalText.length > (extractedData.cleanText || '').length) {
           extractedData.cleanText = finalText;
-          // attempt to refresh summary/title/price from this content
           const sents = finalText.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
           if (!extractedData.title && sents.length) extractedData.title = sents[0].slice(0, 200);
           if (!extractedData.summary && sents.length) extractedData.summary = sents.slice(0, 4).join('. ').substring(0, 600) + '...';
-          // price detection
           const priceRegex = /(R\$\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?|\$\s*\d+(?:[.,]\d+)?|USD\s*\d+)/gi;
           const pm = finalText.match(priceRegex);
           if (pm && pm.length && !extractedData.price) extractedData.price = pm[0];
-          // attempt to find CTA-like lines
           const ctaMatch = unique.find(l => /comprar|quero|adquirir|saiba mais|inscreva-se|assine|compre|agora|garanta/i.test(l));
           if (ctaMatch && !extractedData.cta) extractedData.cta = shortenSentence(ctaMatch, 20);
-          // benefits/testimonials heuristics
           const candidateBenefits = unique.filter(l => l.length > 30 && l.split(' ').length < 30 && /benef|resultado|transforma|aprende|bônus|bonus|template|checklist|planilha|garantia/i.test(l));
           if (candidateBenefits.length) extractedData.benefits = candidateBenefits.slice(0, 6);
         }
+
+        // OCR on images via Puppeteer: collect up to 5 images and run OCR if Tesseract available
+        if (Tesseract) {
+          try {
+            const imgs = await page.$$eval('img[src]', els =>
+              els.map(img => img.src).filter(src => src && !src.startsWith('data:')).slice(0, 5)
+            );
+            if (imgs && imgs.length) {
+              const ocrTexts = await extractTextFromImages(imgs);
+              if (ocrTexts && ocrTexts.length) {
+                extractedData.imagesText = ocrTexts;
+                extractedData.cleanText += '\n' + ocrTexts.join('\n');
+              }
+            }
+          } catch (imgErr) {
+            logger.warn('Image OCR via puppeteer failed: ' + (imgErr && imgErr.message ? imgErr.message : imgErr));
+          }
+        }
+
       } catch (puErr) {
         logger.warn('Puppeteer extraction failed: ' + (puErr && puErr.message ? puErr.message : puErr));
       } finally {
@@ -538,7 +572,26 @@ async function extractPageData(url) {
       logger.warn('Puppeteer not available and cleanText small — extraction may be incomplete for dynamic pages.');
     }
 
-    // Final normalization: dedupe lines and ensure fields present
+    // If we still have images but didn't run OCR via puppeteer, attempt a lightweight cheerio-based image OCR (if Tesseract available)
+    if (Tesseract && extractedData.imagesText.length === 0 && html && html.length) {
+      try {
+        const $ = cheerio.load(html);
+        const imgs = $('img[src]').map((i, el) => $(el).attr('src')).get()
+          .filter(src => src && !src.startsWith('data:'))
+          .slice(0, 3);
+        if (imgs.length) {
+          const ocrTexts = await extractTextFromImages(imgs);
+          if (ocrTexts && ocrTexts.length) {
+            extractedData.imagesText = ocrTexts;
+            extractedData.cleanText += '\n' + ocrTexts.join('\n');
+          }
+        }
+      } catch (imgErr) {
+        logger.warn('Image OCR via cheerio failed: ' + (imgErr && imgErr.message ? imgErr.message : imgErr));
+      }
+    }
+
+    // Final normalization
     try {
       if (extractedData.cleanText) {
         extractedData.cleanText = uniqueLines(extractedData.cleanText);
@@ -559,13 +612,14 @@ async function extractPageData(url) {
 
     dataCache.set(cacheKey, { data: extractedData, timestamp: Date.now() });
     return extractedData;
+
   } catch (err) {
     logger.warn('extractPageData failed', err && err.message ? err.message : err);
-    return { title: '', description: '', price: '', benefits: [], testimonials: [], cta: '', summary: '', cleanText: '', url };
+    return { title: '', description: '', price: '', benefits: [], testimonials: [], cta: '', summary: '', cleanText: '', imagesText: [], url };
   }
 }
 
-// ===== LLM calls (kept intact) =====
+// ===== LLM calls (GROQ -> OpenAI -> OpenRouter) =====
 async function callGroq(messages, temperature = 0.4, max_tokens = 400, presence_penalty = 0.0, frequency_penalty = 0.0) {
   if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY ausente');
   const payload = { model: process.env.GROQ_MODEL || 'llama-3.1-70b-versatile', messages, temperature, max_tokens, presence_penalty, frequency_penalty };
@@ -604,13 +658,12 @@ async function callOpenRouter(messages, temperature = 0.0, max_tokens = 400) {
   return '';
 }
 
-// ===== Orchestration: try GROQ -> OpenAI -> OpenRouter -> local fallback =====
-// generateAIResponse integrated with the user's logic (but keeps orchestration and fallbacks)
+// ===== Orchestration: generateAIResponse =====
 async function generateAIResponse(userMessage, pageData = {}, conversation = [], instructions = '') {
   const salesMode = shouldActivateSalesMode(instructions);
   const instrOpts = parseInstructions(instructions);
 
-  // --- Direct link override: if user explicitly asks for the page/link, return it immediately (bypass LLMs)
+  // Direct link override
   if (userAskedForLink(userMessage) && pageData && pageData.url) {
     const theUrl = pageData.url;
     if (salesMode) {
@@ -619,7 +672,6 @@ async function generateAIResponse(userMessage, pageData = {}, conversation = [],
     return `Aqui está o link oficial: ${theUrl}`;
   }
 
-  // Build system prompt based on sales mode (short and actionable)
   const systemLines = [
     "Você é um assistente inteligente. Responda de forma curta, clara e útil.",
     "Nunca invente dados. Use apenas informações da página extraída ou instruções."
@@ -635,7 +687,6 @@ async function generateAIResponse(userMessage, pageData = {}, conversation = [],
 
   const userPrompt = `${instructions ? 'Instruções do painel: ' + instructions + '\n\n' : ''}${pageSummary}\n\nPergunta do usuário:\n${userMessage}\n\nResponda de forma concisa conforme as regras acima.`;
 
-  // Build message list for LLMs
   const messages = [
     { role: 'system', content: systemPrompt },
     ...((conversation || []).slice(-6).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.message }))),
@@ -672,7 +723,7 @@ async function generateAIResponse(userMessage, pageData = {}, conversation = [],
     }
   }
 
-  // Local fallback: use universalAnswer
+  // Local fallback
   const ua = universalAnswer(pageData, userMessage, instructions);
   if (ua && ua.answer) return ua.answer;
   return NOT_FOUND_MSG;
@@ -707,14 +758,13 @@ app.post('/chat-universal', async (req, res) => {
     const conversation = []; // ephemeral; can be extended to persistent store
     const reply = await generateAIResponse(message, pd, conversation, instructions);
 
-    // 🔑 Força sempre o botão de link no final
+    // Force inclusion of page link at the end if not already present
     let finalReply = reply;
     try {
       if (pd && pd.url && !String(finalReply).includes(pd.url)) {
         finalReply = `${finalReply}\n\n${pd.url}`;
       }
     } catch (e) {
-      // If something unexpected happens when checking/concatenating, fall back to original reply
       logger.warn('Erro ao forçar inclusão do link no final da resposta', e && e.message ? e.message : e);
     }
 
@@ -748,9 +798,9 @@ app.get('/', (req, res) => {
   return res.send('<h2>🚀 LinkMágico Chatbot ativo</h2><p>Coloque seus arquivos estáticos na pasta /public para ativar o painel.</p>');
 });
 
-// ===== Start =====
+// ===== Start Server =====
 const PORT = parseInt(process.env.PORT || process.env.PORT_INTERNAL || '3000', 10);
-app.listen(PORT, () => logger.info(`Server rodando na porta ${PORT}`));
+app.listen(PORT, () => logger.info({ message: `Server rodando na porta ${PORT}`, level: 'info', timestamp: new Date().toISOString() }));
 
 // ===== Helper: minimal UI generator =====
 function generateChatbotHTML(pageData = {}, robotName = '@Assistente', customInstructions = '') {
@@ -827,15 +877,12 @@ textarea{width:100%;min-height:56px;border-radius:10px;padding:8px;border:1px so
 
     // convert plain URLs into safe clickable anchors (no innerHTML used)
     const urlRegex = /https?:\/\/[^\s]+/g;
-    const normalizeUrl = (u) => (typeof u === 'string' ? u.replace(/\/+$/,'') : u);
-
     let lastIndex = 0;
     let match;
     while ((match = urlRegex.exec(content)) !== null) {
       const textPart = content.slice(lastIndex, match.index);
       if (textPart) contentDiv.appendChild(document.createTextNode(textPart));
       const url = match[0];
-      // If this URL is the official page URL extracted for this session, render as a CTA button
       try {
         if (typeof pageData !== 'undefined' && pageData && pageData.url && normalizeUrlForCompare(url).includes(normalizeUrlForCompare(pageData.url))) {
           const a = document.createElement('a');
