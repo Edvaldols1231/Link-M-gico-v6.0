@@ -840,6 +840,29 @@ app.get('/', (req, res) => {
   return res.send('<h2>🚀 LinkMágico Chatbot ativo</h2><p>Coloque seus arquivos estáticos na pasta /public para ativar o painel.</p>');
 });
 
+
+// ===== Health check =====
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ===== Extraction endpoint =====
+app.post('/extract', async (req, res) => {
+  try {
+    const { url } = req.body || {};
+    if (!url) return res.status(400).json({ success: false, error: 'url é obrigatório' });
+    const data = await extractPageData(url);
+    return res.json({ success: true, data });
+  } catch (err) {
+    logger.error('extract endpoint error', err?.message || err);
+    return res.status(500).json({ success: false, error: 'erro interno ao extrair página' });
+  }
+});
+
 // ===== Start Server =====
 const PORT = parseInt(process.env.PORT || process.env.PORT_INTERNAL || '3000', 10);
 app.listen(PORT, () => logger.info({ message: `Server rodando na porta ${PORT}`, level: 'info', timestamp: new Date().toISOString() }));
@@ -988,4 +1011,3 @@ textarea{width:100%;min-height:56px;border-radius:10px;padding:8px;border:1px so
 </body>
 </html>`;
 }
-
