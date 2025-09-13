@@ -1,6 +1,6 @@
 {
   "name": "link-magico-chatbot",
-  "version": "6.0.1",
+  "version": "6.0.0",
   "description": "LinkMágico Chatbot - servidor compatível com Render",
   "main": "server.js",
   "scripts": {
@@ -20,22 +20,19 @@
   "author": "LinkMágico Team",
   "license": "MIT",
   "dependencies": {
-    "axios": "^1.6.7",
-    "body-parser": "^1.20.2",
+    "axios": "^1.5.0",
     "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "helmet": "^7.1.0",
-    "morgan": "^1.10.0",
-    "winston": "^3.13.0"
-  },
-  "optionalDependencies": {
+    "dotenv": "^16.0.0",
+    "express": "^4.18.2",
+    "helmet": "^6.0.0",
     "puppeteer": "^24.20.0",
-    "tesseract.js": "^5.1.1"
+    "tesseract.js": "^5.1.1",
+    "winston": "^3.8.2",
+    "morgan": "^1.10.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.0.2"
   },
   "engines": {
     "node": "20.x"
