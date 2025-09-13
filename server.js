@@ -819,29 +819,38 @@ async function generateAIResponse(userMessage, pageData = {}, conversation = [],
     const salesMode = shouldActivateSalesMode(instructions);
     const instrOpts = parseInstructions(instructions);
 
-    // Direct link override
-    if (userAskedForLink(userMessage) && pageData && pageData.url) {
-      const theUrl = pageData.url;
-      if (salesMode) {
-        return `🌟 Aqui está o link oficial: ${theUrl}\nQuer que eu te envie o passo a passo para garantir agora? 🚀`;
-      }
-      return `Aqui está o link oficial: ${theUrl}`;
-    }
+    // Monta seção de bônus
+    const bonusesSection = (pageData && Array.isArray(pageData.bonuses_detected) && pageData.bonuses_detected.length)
+      ? `
+BÔNUS DETECTADOS:
+${pageData.bonuses_detected.join('
+')}`
+      : '';
 
-    const systemLines = [
-      "Você é um assistente inteligente. Responda de forma curta, clara e útil.",
-      "Nunca invente dados. Use apenas informações da página extraída ou instruções."
-    ];
-    if (salesMode) {
-      systemLines.push("Tom de voz: amigável, consultivo e entusiasmado. Finalize com CTA para compra quando relevante.");
-    } else {
-      systemLines.push("Tom: conciso e objetivo; respostas curtas.");
-    }
-    const systemPrompt = systemLines.join('\n');
+    const systemPrompt = [
+      "Você é um assistente inteligente. Responda de forma útil e concisa.",
+      "Use o contexto completo abaixo, incluindo bônus, preços e garantias."
+    ].join('
+');
 
-    const pageSummary = `Resumo da página:\nTítulo: ${pageData.title || ''}\nDescrição: ${pageData.description || ''}\nPreço: ${pageData.price || ''}\nBenefícios: ${Array.isArray(pageData.benefits) ? pageData.benefits.join(', ') : pageData.benefits || ''}\nCTA: ${pageData.cta || ''}\nEvidências (trechos):\n${(pageData.summary || pageData.cleanText || '').slice(0, 2000)}`;
+    const contextBlock = `Título: ${pageData.title || ''}
+Descrição: ${pageData.description || ''}
+Preço: ${pageData.price || ''}
+Garantias: ${(pageData.guarantee_detected || []).join(', ')}
+CTAs: ${(pageData.cta_detected || []).join(', ')}
+Bullets: ${(pageData.bullets || []).join(' | ')}
+Depoimentos: ${(pageData.testimonials || []).join(' | ')}${bonusesSection}
+Conteúdo:
+${(pageData.cleanText || '').slice(0, 2000)}`;
 
-    const userPrompt = `${instructions ? 'Instruções do painel: ' + instructions + '\n\n' : ''}${pageSummary}\n\nPergunta do usuário:\n${userMessage}\n\nResponda de forma concisa conforme as regras acima.`;
+    const userPrompt = `${instructions ? 'Instruções: ' + instructions + '
+
+' : ''}${contextBlock}
+
+Pergunta:
+${userMessage}
+
+Responda de forma objetiva e inclua os bônus quando relevantes.`;
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -849,43 +858,38 @@ async function generateAIResponse(userMessage, pageData = {}, conversation = [],
       { role: 'user', content: userPrompt }
     ];
 
-    // Try GROQ
     if (process.env.GROQ_API_KEY) {
       try {
-        const groqResp = await callGroq(messages, parseFloat(process.env.GROQ_TEMP || '0.4'), parseInt(process.env.GROQ_MAX_TOKENS || '400', 10), parseFloat(process.env.GROQ_PRESENCE_PENALTY || '0.0'), parseFloat(process.env.GROQ_FREQ_PENALTY || '0.0'));
-        if (groqResp && groqResp.trim()) return clampSentences(groqResp.trim(), Math.max(1, instrOpts.maxSentences || 2));
+        const groqResp = await callGroq(messages);
+        if (groqResp && groqResp.trim()) return groqResp.trim();
       } catch (err) {
-        logger.warn('GROQ failed, will try OpenAI. Error: ' + (err && err.message ? err.message : err));
+        logger.warn('GROQ falhou, tentando OpenAI: ' + (err?.message || err));
       }
     }
 
-    // Try OpenAI
     if (process.env.OPENAI_API_KEY) {
       try {
-        const openaiResp = await callOpenAI(messages, parseFloat(process.env.OPENAI_TEMP || '0.2'), parseInt(process.env.OPENAI_MAX_TOKENS || '400', 10), parseFloat(process.env.OPENAI_PRESENCE_PENALTY || '0.0'), parseFloat(process.env.OPENAI_FREQ_PENALTY || '0.0'));
-        if (openaiResp && openaiResp.trim()) return clampSentences(openaiResp.trim(), Math.max(1, instrOpts.maxSentences || 2));
+        const openaiResp = await callOpenAI(messages);
+        if (openaiResp && openaiResp.trim()) return openaiResp.trim();
       } catch (err) {
-        logger.warn('OpenAI failed, will try OpenRouter if available. Error: ' + (err && err.message ? err.message : err));
+        logger.warn('OpenAI falhou, tentando OpenRouter: ' + (err?.message || err));
       }
     }
 
-    // Try OpenRouter
     if (process.env.OPENROUTER_API_KEY) {
       try {
-        const orResp = await callOpenRouter(messages, parseFloat(process.env.OPENROUTER_TEMP || '0.0'), parseInt(process.env.OPENROUTER_MAX_TOKENS || '400', 10));
-        if (orResp && orResp.trim()) return clampSentences(orResp.trim(), Math.max(1, instrOpts.maxSentences || 2));
+        const orResp = await callOpenRouter(messages);
+        if (orResp && orResp.trim()) return orResp.trim();
       } catch (err) {
-        logger.warn('OpenRouter failed. Error: ' + (err && err.message ? err.message : err));
+        logger.warn('OpenRouter falhou: ' + (err?.message || err));
       }
     }
 
-    // Local fallback
     const ua = universalAnswer(pageData, userMessage, instructions);
     if (ua && ua.answer) return ua.answer;
     return NOT_FOUND_MSG;
-
   } catch (err) {
-    logger.error('generateAIResponse erro: ' + (err && err.message ? err.message : err));
+    logger.error('generateAIResponse erro: ' + (err?.message || err));
     return NOT_FOUND_MSG;
   }
 }
