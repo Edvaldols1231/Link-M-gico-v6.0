@@ -181,38 +181,54 @@ function extractBullets(text) {
   return Array.from(new Set(bullets)).slice(0, 12);
 }
 
+
 function extractTestimonials(text) {
   if (!text) return [];
   const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const out = [];
-  const emotive = /(obrigad|mudou minha vida|funciona|resultado|amei|recomendo|vende(d|u)|consegui|transformou|resultado|aprovado)/i;
+  const emotive = /(obrigad|mudou minha vida|funciona|resultado|amei|recomendo|vendeu|vendeu|consegui|transformou|aprovado|incr[ií]vel|incrivel)/i;
   for (const l of lines) {
-    if (l.length >= 12 && l.length <= 220 && emotive.test(l)) {
-      out.push(l);
-    }
-
+    try {
+      if (l.length >= 12 && l.length <= 220 && emotive.test(l)) {
+        out.push(l);
+        if (out.length >= 12) break;
+      }
+    } catch (e) {}
+  }
+  return Array.from(new Set(out)).slice(0, 12);
+}
 
 function extractBonuses(text) {
   if (!text) return [];
   const out = [];
   const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const regexBonus = /\b(b[ôo0]n[ûu]s?)\b/i;
+  const regexBonus = /\\b(b[ôo0]n[ûu]s?)(\\s*\\d+)?\\b/i;
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i];
     if (regexBonus.test(l)) {
-      if (l.length <= 180 && l.length >= 5) out.push(l);
-      if (lines[i + 1] and lines[i + 1].length < 140): out.push(lines[i + 1]);
+      const clean = l.replace(/\\s{2,}/g, ' ').trim();
+      if (clean.length >= 3 && clean.length <= 240) out.push(clean);
+      const next = lines[i + 1];
+      if (next && next.length < 200) out.push(next);
+    } else {
+      const m = l.match(/^(?:b[ôo0]n[ûu]s?)\\s*\\d+\\b[\\s:\\-–]+(.{3,240})$/i);
+      if (m && m[1]) {
+        out.push(m[1].trim());
+      }
     }
-    if (out.length >= 12) break;
+    if (out.length >= 20) break;
   }
-  return Array.from(new Set(out));
-}
+
+  // inline patterns like "BÔNUS 1: Planilha..."
+  const inlineRegex = /(b[ôo0]n[ûu]s?\\s*\\d+)\\s*[:\\-–]\\s*([^\\n]{3,240})/gi;
+  let mm;
+  while ((mm = inlineRegex.exec(text)) !== null) {
+    const candidate = `${mm[1]} — ${mm[2]}`.trim();
+    if (!out.includes(candidate)) out.push(candidate);
     if (out.length >= 20) break;
   }
   return Array.from(new Set(out)).slice(0, 12);
 }
-
-
 // ===== OCR (optional) =====
 async function extractTextFromImages(urls) {
   const results = [];
@@ -932,7 +948,7 @@ app.post('/chat-universal', async (req, res) => {
       logger.warn('Erro ao forçar inclusão do link no final da resposta', e && e.message ? e.message : e);
     }
 
-    return res.json({ success: true, response: finalReply, bonuses_detected: pd.bonuses_detected || [] });
+    return res.json({ success: true, response: finalReply });
   } catch (err) {
     logger.error('chat-universal error', err && err.message ? err.message : err);
     return res.status(500).json({ success: false, error: 'erro interno ao gerar resposta' });
