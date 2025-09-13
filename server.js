@@ -798,9 +798,8 @@ app.post('/chat-universal', async (req, res) => {
       pd.guarantee_detected = extractGuarantees(pd.cleanText || "");
       pd.cta_detected = extractCTAs(pd.cleanText || "");
       pd.bullets = extractBullets(pd.cleanText || "");
-      pd.testimonials = extractTestimonials((pd.imagesText || []).join("
-"));
-    }
+      pd.testimonials = extractTestimonials((pd.imagesText || []).join(" "));
+}
 
     const context = `
 TÍTULO: ${pd.title}
