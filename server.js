@@ -190,6 +190,23 @@ function extractTestimonials(text) {
     if (l.length >= 12 && l.length <= 220 && emotive.test(l)) {
       out.push(l);
     }
+
+
+function extractBonuses(text) {
+  if (!text) return [];
+  const out = [];
+  const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const regexBonus = /\b(b[ôo0]n[ûu]s?)\b/i;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (regexBonus.test(l)) {
+      if (l.length <= 180 && l.length >= 5) out.push(l);
+      if (lines[i + 1] and lines[i + 1].length < 140): out.push(lines[i + 1]);
+    }
+    if (out.length >= 12) break;
+  }
+  return Array.from(new Set(out));
+}
     if (out.length >= 20) break;
   }
   return Array.from(new Set(out)).slice(0, 12);
