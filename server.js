@@ -592,7 +592,7 @@ async function extractPageData(url) {
         if (Tesseract) {
           try {
             const imgs = await page.$$eval('img[src]', els =>
-              els.map(img => img.src).filter(src => src && !src.startsWith('data:')).slice(0, 10)
+              els.map(img => img.src).filter(src => src && !src.startsWith('data:')).slice(0, 20)
             );
             if (imgs && imgs.length) {
               const ocrTexts = await extractTextFromImages(imgs);
@@ -622,7 +622,7 @@ async function extractPageData(url) {
         const $ = cheerio.load(html);
         const imgs = $('img[src]').map((i, el) => $(el).attr('src')).get()
           .filter(src => src && !src.startsWith('data:'))
-          .slice(0, 5);
+          .slice(0, 20);
         if (imgs.length) {
           const ocrTexts = await extractTextFromImages(imgs);
           if (ocrTexts && ocrTexts.length) {
