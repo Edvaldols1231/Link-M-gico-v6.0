@@ -915,7 +915,7 @@ app.post('/chat-universal', async (req, res) => {
       logger.warn('Erro ao forçar inclusão do link no final da resposta', e && e.message ? e.message : e);
     }
 
-    return res.json({ success: true, response: finalReply });
+    return res.json({ success: true, response: finalReply, bonuses_detected: pd.bonuses_detected || [] });
   } catch (err) {
     logger.error('chat-universal error', err && err.message ? err.message : err);
     return res.status(500).json({ success: false, error: 'erro interno ao gerar resposta' });
