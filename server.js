@@ -92,7 +92,8 @@ function uniqueLines(text) {
     if (seen.has(l)) return false;
     seen.add(l);
     return true;
-  }).join('\n');
+  }).join('
+');
 }
 function tokenize(s) {
   if (!s) return [];
@@ -117,7 +118,8 @@ function findListItemsFromText(text) {
     if (l.length < 140 && l.split(' ').length <= 20) items.push(l);
     if (items.length >= 12) break;
   }
-  return uniqueLines(items.join('\n')).split('\n').filter(Boolean);
+  return uniqueLines(items.join('
+')).split('\n').filter(Boolean);
 }
 
 // ===== Context extraction helpers =====
@@ -268,7 +270,8 @@ function extractCleanTextFromHTML(html) {
     const metaDesc = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '';
     if (metaDesc && metaDesc.trim().length > 20) blocks.unshift(normalizeText(metaDesc.trim()));
     const unique = [...new Set(blocks.map(b => b.trim()).filter(Boolean))];
-    return unique.join('\n');
+    return unique.join('
+');
   } catch (e) {
     logger.warn('extractCleanTextFromHTML error', e?.message || e);
     return '';
@@ -385,7 +388,8 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
           lines.push('O investimento é pequeno em comparação ao valor entregue e ao tempo que você economiza.');
         }
         lines.push('Quer que eu te envie o link para garantir agora? 🚀');
-        return { mode: 'sales_objection_price', answer: lines.join('\n') };
+        return { mode: 'sales_objection_price', answer: lines.join('
+') };
       }
 
       if (/confus[oa]|n[aã]o entendi|poderia resumir/.test(q)) {
@@ -399,7 +403,8 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
         bullets.push('• Próximo passo: eu te envio o link para garantir agora.');
         return {
           mode: 'sales_confused',
-          answer: `Entendo! Aqui vai um resumo rápido:\n${bullets.join('\n')}\nQuer que eu te envie o link para garantir agora? ✅`
+          answer: `Entendo! Aqui vai um resumo rápido:\n${bullets.join('
+')}\nQuer que eu te envie o link para garantir agora? ✅`
         };
       }
 
@@ -409,7 +414,8 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
         lines.push('Foco em resultados reais e implementação rápida — não só teoria.');
         if (priceInfo?.promo) lines.push(`Investimento atual: ${priceInfo.full ? formatBRL(priceInfo.full) + ' → ' : ''}${formatBRL(priceInfo.promo)}.`);
         lines.push('Quer que eu te envie o link para garantir agora?');
-        return { mode: 'sales_comp', answer: lines.join('\n') };
+        return { mode: 'sales_comp', answer: lines.join('
+') };
       }
 
       if (/pre[çc]o|quanto custa|valor/i.test(q)) {
@@ -434,7 +440,8 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
     if (!qTokens.length) {
       const listItems = findListItemsFromText(source).slice(0, instr.maxBullets || 3).map(s => shortenSentence(s, 16));
       const opener = summary || clampSentences(description || cleanText, instr.maxSentences || 2);
-      const bullets = listItems.length ? '\n' + listItems.map(s => `- ${s}`).join('\n') : '';
+      const bullets = listItems.length ? '\n' + listItems.map(s => `- ${s}`).join('
+') : '';
       if (shouldActivateSalesMode(instructions)) {
         const cta = '\nQuer que eu te mande o link para garantir agora?';
         return { mode: 'sales_overview', answer: `${clampSentences(opener, instr.maxSentences || 2)}${bullets}${cta}` };
@@ -483,7 +490,8 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
     }
 
     const opener = summary || clampSentences(pageData.description || topN[0] || '', instr.maxSentences || 2);
-    const bulletsText = topBullets.slice(0, instr.maxBullets || 3).map(b => `- ${b}`).join('\n');
+    const bulletsText = topBullets.slice(0, instr.maxBullets || 3).map(b => `- ${b}`).join('
+');
 
     if (shouldActivateSalesMode(instructions)) {
       const priceInfo = detectPricesFromSource(source);
@@ -502,7 +510,8 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
       assembled = bulletsText ? `${paragraph}\n${bulletsText}` : paragraph;
     }
     const finalLines = assembled.split(/\r?\n/).slice(0, Math.max(1, instr.maxSentences || 2) + (instr.maxBullets || 3));
-    return { mode: 'bullets', answer: finalLines.join('\n').trim() };
+    return { mode: 'bullets', answer: finalLines.join('
+').trim() };
 
   } catch (err) {
     logger.warn('universalAnswer error', err);
@@ -681,7 +690,8 @@ async function extractPageData(url) {
         const cleaned = normalizeText(String(bodyText || '')).replace(/\s{2,}/g, ' ');
         const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
         const unique = [...new Set(lines)];
-        const finalText = unique.join('\n');
+        const finalText = unique.join('
+');
 
         if (finalText && finalText.length > (extractedData.cleanText || '').length) {
           extractedData.cleanText = finalText;
@@ -707,7 +717,8 @@ async function extractPageData(url) {
               const ocrTexts = await extractTextFromImages(imgs);
               if (ocrTexts && ocrTexts.length) {
                 extractedData.imagesText = ocrTexts;
-                extractedData.cleanText += '\n' + ocrTexts.join('\n');
+                extractedData.cleanText += '\n' + ocrTexts.join('
+');
                 logger.info('🔍 OCR via Puppeteer extraído: ' + ocrTexts.slice(0,3).map(t=>t.slice(0,100)).join(' | '));
               }
             }
@@ -736,7 +747,8 @@ async function extractPageData(url) {
           const ocrTexts = await extractTextFromImages(imgs);
           if (ocrTexts && ocrTexts.length) {
             extractedData.imagesText = ocrTexts;
-            extractedData.cleanText += '\n' + ocrTexts.join('\n');
+            extractedData.cleanText += '\n' + ocrTexts.join('
+');
             logger.info('🔍 OCR via Cheerio extraído: ' + ocrTexts.slice(0,3).map(t=>t.slice(0,100)).join(' | '));
           }
         }
@@ -815,49 +827,22 @@ async function callOpenRouter(messages, temperature = 0.0, max_tokens = 400) {
 
 // ===== Orchestration: generateAIResponse =====
 async function generateAIResponse(userMessage, pageData = {}, conversation = [], instructions = '') {
+
+async function generateAIResponse(userMessage, pageData = {}, conversation = [], instructions = '') {
   try {
-    const salesMode = shouldActivateSalesMode(instructions);
-    const instrOpts = parseInstructions(instructions);
-
-    // Monta seção de bônus
-    const bonusesSection = (pageData && Array.isArray(pageData.bonuses_detected) && pageData.bonuses_detected.length)
-      ? `
-BÔNUS DETECTADOS:
-${pageData.bonuses_detected.join('
-')}`
+    const systemPrompt = 'Você é um assistente especializado em responder dúvidas sobre páginas de vendas.';
+    // Build a safe, escaped user prompt that includes instructions and context
+    const context = (pageData && (pageData.title || pageData.description || pageData.cleanText || (pageData.imagesText||[]).join('\\n'))) 
+      ? `TÍTULO: ${'${pageData.title || ""}'}\nDESCRIÇÃO: ${'${pageData.description || ""}'}\nTEXTO:\n${'${(pageData.cleanText||"").slice(0,1500)}'}\nOCR:\n${'${(pageData.imagesText||[]).slice(0,10).join("\\n")}'}` 
       : '';
-
-    const systemPrompt = [
-      "Você é um assistente inteligente. Responda de forma útil e concisa.",
-      "Use o contexto completo abaixo, incluindo bônus, preços e garantias."
-    ].join('
-');
-
-    const contextBlock = `Título: ${pageData.title || ''}
-Descrição: ${pageData.description || ''}
-Preço: ${pageData.price || ''}
-Garantias: ${(pageData.guarantee_detected || []).join(', ')}
-CTAs: ${(pageData.cta_detected || []).join(', ')}
-Bullets: ${(pageData.bullets || []).join(' | ')}
-Depoimentos: ${(pageData.testimonials || []).join(' | ')}${bonusesSection}
-Conteúdo:
-${(pageData.cleanText || '').slice(0, 2000)}`;
-
-    const userPrompt = `${instructions ? 'Instruções: ' + instructions + '
-
-' : ''}${contextBlock}
-
-Pergunta:
-${userMessage}
-
-Responda de forma objetiva e inclua os bônus quando relevantes.`;
-
+    const userPrompt = `${instructions ? 'Instruções: ' + instructions + '\\n\\n' : ''}Contexto da página:\\n${context}\\nPergunta: ${userMessage}`;
     const messages = [
       { role: 'system', content: systemPrompt },
       ...((conversation || []).slice(-6).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.message }))),
       { role: 'user', content: userPrompt }
     ];
 
+    // Try GROQ -> OpenAI -> OpenRouter
     if (process.env.GROQ_API_KEY) {
       try {
         const groqResp = await callGroq(messages);
@@ -894,6 +879,8 @@ Responda de forma objetiva e inclua os bônus quando relevantes.`;
   }
 }
 
+}
+
 // ===== Routes: chat-universal, chatbot UI, root =====
 
 // /chat-universal - main chat endpoint used by embedded UI
@@ -910,14 +897,16 @@ app.post('/chat-universal', async (req, res) => {
 
     // enrich metadata using helpers (safe - small processing)
     try {
-      const combined = (pd.cleanText || '') + '\n' + ((pd.imagesText || []).join('\n') || '');
+      const combined = (pd.cleanText || '') + '\n' + ((pd.imagesText || []).join('
+') || '');
       pd.bonuses_detected = extractBonuses(combined);
       pd.price_detected = extractPrices(combined);
       pd.price_info = detectPricesFromSource(combined) || null;
       pd.guarantee_detected = extractGuarantees(combined);
       pd.cta_detected = extractCTAs(combined);
       pd.bullets = extractBullets(combined);
-      pd.testimonials = extractTestimonials(((pd.imagesText || []).join('\n')) + '\n' + (pd.cleanText || ''));
+      pd.testimonials = extractTestimonials(((pd.imagesText || []).join('
+')) + '\n' + (pd.cleanText || ''));
     } catch (e) {
       logger.warn('metadata detection failed', e && e.message ? e.message : String(e));
     }
@@ -1007,7 +996,7 @@ app.post('/extract', async (req, res) => {
 
 // ===== Start Server =====
 const PORT = parseInt(process.env.PORT || process.env.PORT_INTERNAL || '3000', 10);
-app.listen(PORT, () => logger.info({ message: `Server rodando na porta ${PORT}`, level: 'info', timestamp: new Date().toISOString() }));
+app.listen(PORT, () => logger.info({ message: `Server rodando na porta ${PORT}`, level: 'info', timestamp: new Date().toISOString() }).toISOString() }));
 
 // ===== Helper: minimal UI generator (HTML) =====
 function generateChatbotHTML(pageData = {}, robotName = '@Assistente', customInstructions = '') {
