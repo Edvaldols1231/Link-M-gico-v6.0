@@ -1,6 +1,3 @@
-
-PARTE 1 (do topo até o fim de extractCleanTextFromHTML):
-
 // ================================================================
 // LinkMágico Chatbot - server.js (integrado, ajustado e completíssimo)
 // ================================================================
@@ -169,8 +166,6 @@ function extractCleanTextFromHTML(html) {
   }
 }
 
-
-PARTE 2 (com a lógica de preços, heurísticas e universalAnswer)
 
 // ===== Price detection helpers =====
 function detectPricesFromSource(source = '') {
@@ -406,8 +401,6 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
   }
 }
 
-
-PARTE 3 (implementação de extractPageData com scroll real + OCR)
 
 // ===== Extraction with caching =====
 const dataCache = new Map();
@@ -671,8 +664,6 @@ async function extractPageData(url) {
   }
 }
 
-
-PARTE 4 (onde eu adiciono: chamadas LLM — callGroq, callOpenAI, callOpenRouter; generateAIResponse; rotas /chat-universal, /chatbot, UI embarcada e o app.listen final)
 
 // ===== LLM calls (GROQ -> OpenAI -> OpenRouter) =====
 async function callGroq(messages, temperature = 0.4, max_tokens = 400, presence_penalty = 0.0, frequency_penalty = 0.0) {
