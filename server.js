@@ -823,13 +823,15 @@ async function generateAIResponse(userMessage, pageData = {}, conversation = [],
     const bonusesSection = (pageData && Array.isArray(pageData.bonuses_detected) && pageData.bonuses_detected.length)
       ? `
 BÔNUS DETECTADOS:
-${pageData.bonuses_detected.join('\n')}`
+${pageData.bonuses_detected.join('
+')}`
       : '';
 
     const systemPrompt = [
       "Você é um assistente inteligente. Responda de forma útil e concisa.",
       "Use o contexto completo abaixo, incluindo bônus, preços e garantias."
-    ].join('\n');
+    ].join('
+');
 
     const contextBlock = `Título: ${pageData.title || ''}
 Descrição: ${pageData.description || ''}
