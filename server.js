@@ -1,5 +1,5 @@
 // ================================================================
-// LinkMágico Chatbot - server.js (corrigido, CommonJS)
+// LinkMágico Chatbot - server.js (integrado, ajustado e completíssimo)
 // ================================================================
 // Observações:
 // - Arquivo único com extração (axios + cheerio), fallback com Puppeteer (se instalado),
@@ -32,7 +32,6 @@ try {
   puppeteer = require('puppeteer');
 } catch (e) {
   // Puppeteer not installed — dynamic rendering fallback will be unavailable.
-  puppeteer = null;
 }
 
 let Tesseract = null;
@@ -40,7 +39,6 @@ try {
   Tesseract = require('tesseract.js');
 } catch (e) {
   // Tesseract not installed — OCR will be skipped.
-  Tesseract = null;
 }
 
 const app = express();
@@ -122,7 +120,83 @@ function findListItemsFromText(text) {
   return uniqueLines(items.join('\n')).split('\n').filter(Boolean);
 }
 
-// ===== OCR (optional, uses Tesseract if installed) =====
+// ===== Context extraction helpers =====
+function extractPrices(text) {
+  if (!text) return [];
+  const regex = /(R\$\s?\d{1,3}(?:\.\d{3})*,\d{2})/gi;
+  const out = [];
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    out.push(m[0]);
+    if (out.length >= 20) break;
+  }
+  return Array.from(new Set(out));
+}
+
+function extractGuarantees(text) {
+  if (!text) return [];
+  const regex = /garantia\s*(de)?\s*\d+\s*(dias|meses)/gi;
+  const out = [];
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    out.push(m[0]);
+    if (out.length >= 10) break;
+  }
+  return Array.from(new Set(out));
+}
+
+function extractCTAs(text) {
+  if (!text) return [];
+  const candidates = [];
+  const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const actionWords = /(comprar|quero|adquirir|saiba mais|inscreva|assine|compre|agora|garanta|obter|garanta seu|quero meu)/i;
+  for (const l of lines) {
+    if (l.length > 3 && l.length < 120 && actionWords.test(l)) {
+      candidates.push(l);
+    }
+    if (l.split(' ').length <= 4 && /^(comprar|quero|compre|garanta|assine|inscreva-se|saiba)/i.test(l)) candidates.push(l);
+    if (candidates.length >= 12) break;
+  }
+  return Array.from(new Set(candidates)).slice(0, 12);
+}
+
+function extractBullets(text) {
+  if (!text) return [];
+  const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const bullets = [];
+  for (const l of lines) {
+    if (/^(?:\*|\-|\u2022|\d+\.)\s+/.test(l)) {
+      bullets.push(l.replace(/^(?:\*|\-|\u2022|\d+\.)\s+/, ''));
+      continue;
+    }
+    if (/^(✔|✓)/.test(l)) {
+      bullets.push(l.replace(/^(✔|✓)\s*/, ''));
+      continue;
+    }
+    if (l.length > 20 && l.length < 140 && /(módul|módulos|aulas|benefício|beneficios|benefício|benefícios|conteúdo|conteudos|módulo|aula|bonu?s)/i.test(l)) {
+      bullets.push(l);
+    }
+    if (bullets.length >= 20) break;
+  }
+  return Array.from(new Set(bullets)).slice(0, 12);
+}
+
+function extractTestimonials(text) {
+  if (!text) return [];
+  const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const out = [];
+  const emotive = /(obrigad|mudou minha vida|funciona|resultado|amei|recomendo|vende(d|u)|consegui|transformou|resultado|aprovado)/i;
+  for (const l of lines) {
+    if (l.length >= 12 && l.length <= 220 && emotive.test(l)) {
+      out.push(l);
+    }
+    if (out.length >= 20) break;
+  }
+  return Array.from(new Set(out)).slice(0, 12);
+}
+
+
+// ===== OCR (optional) =====
 async function extractTextFromImages(urls) {
   const results = [];
   if (!Tesseract) {
@@ -145,17 +219,12 @@ async function extractTextFromImages(urls) {
   return results;
 }
 
-// ===== Text extraction helpers (Cheerio + Puppeteer fallback) =====
+// ===== Text extraction (Cheerio + Puppeteer fallback) =====
 function extractCleanTextFromHTML(html) {
   try {
     const $ = cheerio.load(html || '');
     $('script,style,noscript,iframe').remove();
-
-    const selectors = [
-      'h1','h2','h3','h4','h5','h6',
-      'p','li','span','div','button',
-      'strong','em','blockquote','a'
-    ];
+    const selectors = ['h1','h2','h3','h4','h5','h6','p','li','span','div','button','strong','em','blockquote','a'];
     const blocks = [];
     for (const sel of selectors) {
       $(sel).each((i, el) => {
@@ -163,18 +232,16 @@ function extractCleanTextFromHTML(html) {
         if (txt && txt.length > 10 && txt.length < 2000) blocks.push(txt);
       });
     }
-
-    // Also grab meta description if present
     const metaDesc = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '';
     if (metaDesc && metaDesc.trim().length > 20) blocks.unshift(normalizeText(metaDesc.trim()));
-
     const unique = [...new Set(blocks.map(b => b.trim()).filter(Boolean))];
     return unique.join('\n');
   } catch (e) {
-    logger.warn('extractCleanTextFromHTML error', e && e.message ? e.message : e);
+    logger.warn('extractCleanTextFromHTML error', e?.message || e);
     return '';
   }
 }
+
 
 // ===== Price detection helpers =====
 function detectPricesFromSource(source = '') {
@@ -192,8 +259,15 @@ function detectPricesFromSource(source = '') {
   const values = matches.map(x => x.value);
   const max = Math.max(...values);
   const min = Math.min(...values);
-  if (max === min) return { full: null, promo: min, rawPromo: matches.find(x => x.value === min)?.raw || null };
-  return { full: max, promo: min, rawFull: matches.find(x => x.value === max)?.raw || null, rawPromo: matches.find(x => x.value === min)?.raw || null };
+  if (max === min) {
+    return { full: null, promo: min, rawPromo: matches.find(x => x.value === min)?.raw || null };
+  }
+  return {
+    full: max,
+    promo: min,
+    rawFull: matches.find(x => x.value === max)?.raw || null,
+    rawPromo: matches.find(x => x.value === min)?.raw || null
+  };
 }
 function formatBRL(v) {
   try {
@@ -204,7 +278,7 @@ function formatBRL(v) {
   }
 }
 
-// ===== User-provided logic & heuristics (integrated) =====
+// ===== User-provided logic & heuristics =====
 const NOT_FOUND_MSG = "Não encontrei essa informação nesta página. Quer que eu mostre o link direto?";
 
 function userAskedForLink(q) {
@@ -228,7 +302,7 @@ function parseInstructions(instructions = '') {
   return { raw: instructions || '' };
 }
 
-// universalAnswer: local fallback for answering using pageData
+// ===== universalAnswer =====
 function universalAnswer(pageData = {}, question = '', instructions = '') {
   try {
     const salesMode = shouldActivateSalesMode(instructions);
@@ -253,11 +327,15 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
     if (!source || source.length < 30) {
       if (salesMode) {
         const cta = 'Quer que eu te envie o link para garantir agora?';
-        return { mode: 'sales_fallback', answer: `Entendo sua dúvida 😊\n- Este produto entrega benefícios práticos e focados em resultados.\n- Posso encaminhar o link de compra agora mesmo.\n${cta}` };
+        return {
+          mode: 'sales_fallback',
+          answer: `Entendo sua dúvida 😊\n- Este produto entrega benefícios práticos e focados em resultados.\n- Posso encaminhar o link de compra agora mesmo.\n${cta}`
+        };
       }
       return { mode: 'not_found', answer: NOT_FOUND_MSG };
     }
 
+    // Casos específicos em modo de vendas
     if (salesMode) {
       const q = (question || '').toLowerCase();
       const priceInfo = detectPricesFromSource(source);
@@ -280,11 +358,16 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
       if (/confus[oa]|n[aã]o entendi|poderia resumir/.test(q)) {
         const bullets = [];
         bullets.push('• O que você recebe: conteúdo prático e aplicável (conforme página).');
-        const priceLine = priceInfo?.promo ? `${priceInfo.full ? formatBRL(priceInfo.full) + ' → ' : ''}${formatBRL(priceInfo.promo)}` : 'Preço: informado na página.';
+        const priceLine = priceInfo?.promo
+          ? `${priceInfo.full ? formatBRL(priceInfo.full) + ' → ' : ''}${formatBRL(priceInfo.promo)}`
+          : 'Preço: informado na página.';
         bullets.push(`• Preço: ${priceLine}`);
         bullets.push('• Garantia/segurança: compra protegida pela plataforma.');
         bullets.push('• Próximo passo: eu te envio o link para garantir agora.');
-        return { mode: 'sales_confused', answer: `Entendo! Aqui vai um resumo rápido:\n${bullets.join('\n')}\nQuer que eu te envie o link para garantir agora? ✅` };
+        return {
+          mode: 'sales_confused',
+          answer: `Entendo! Aqui vai um resumo rápido:\n${bullets.join('\n')}\nQuer que eu te envie o link para garantir agora? ✅`
+        };
       }
 
       if (/concorr(ê|e)ncia|concorrente|outro(s)? curso(s)?|alternativa(s)?/i.test(q)) {
@@ -301,12 +384,16 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
           const full = priceInfo.full ? formatBRL(priceInfo.full) : null;
           const promo = formatBRL(priceInfo.promo);
           const preface = full ? `O valor cheio era ${full},` : 'Temos valor promocional ativo,';
-          return { mode: 'sales_price', answer: `${preface} hoje você garante por ${promo} ✅\nBenefício: acesso ao conteúdo que acelera seus resultados 🌟\nQuer que eu te envie o link para garantir agora? 🚀` };
+          return {
+            mode: 'sales_price',
+            answer: `${preface} hoje você garante por ${promo} ✅\nBenefício: acesso ao conteúdo que acelera seus resultados 🌟\nQuer que eu te envie o link para garantir agora? 🚀`
+          };
         }
         return { mode: 'sales_price', answer: `Preço atual informado na página. Quer que eu te envie o link para garantir agora? ✅` };
       }
     }
 
+    // Similaridade baseada em tokens
     const sentences = source.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
     const qTokens = tokenize(question || '');
     const instr = instrOpts;
@@ -332,7 +419,10 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
     });
 
     if (!scored.length) {
-      const fallbackText = (summary || description || cleanText).split(/(?<=[.!?])\s+/).filter(Boolean).slice(0, Math.max(1, instr.maxSentences || 2)).join(' ');
+      const fallbackText = (summary || description || cleanText)
+        .split(/(?<=[.!?])\s+/).filter(Boolean)
+        .slice(0, Math.max(1, instr.maxSentences || 2))
+        .join(' ');
       if (!fallbackText) {
         if (shouldActivateSalesMode(instructions)) {
           return { mode: 'sales_fallback', answer: 'Posso te encaminhar direto para a página de compra. Quer o link agora? ✅' };
@@ -364,7 +454,9 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
 
     if (shouldActivateSalesMode(instructions)) {
       const priceInfo = detectPricesFromSource(source);
-      const priceLine = priceInfo?.promo ? `\nPreço: ${priceInfo.full ? `${formatBRL(priceInfo.full)} → ` : ''}${formatBRL(priceInfo.promo)} ✅` : '';
+      const priceLine = priceInfo?.promo
+        ? `\nPreço: ${priceInfo.full ? `${formatBRL(priceInfo.full)} → ` : ''}${formatBRL(priceInfo.promo)} ✅`
+        : '';
       const answer = `${clampSentences(opener, instr.maxSentences || 2)}\n${bulletsText}${priceLine}\nQuer que eu te mande o link para garantir agora?`;
       return { mode: 'sales', answer };
     }
@@ -384,6 +476,7 @@ function universalAnswer(pageData = {}, question = '', instructions = '') {
     return { mode: 'error', answer: NOT_FOUND_MSG };
   }
 }
+
 
 // ===== Extraction with caching =====
 const dataCache = new Map();
@@ -458,12 +551,12 @@ async function extractPageData(url) {
 
         // Price heuristic
         const bodyText = $('body').text() || '';
-        const priceRegex = /(R\\$\\s*\\d{1,3}(?:[.,]\\d{3})*(?:[.,]\\d{2})?|\\$\\s*\\d+(?:[.,]\\d+)?|USD\\s*\\d+)/gi;
+        const priceRegex = /(R\$\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?|\$\s*\d+(?:[.,]\d+)?|USD\s*\d+)/gi;
         const priceMatches = bodyText.match(priceRegex);
         if (priceMatches && priceMatches.length) extractedData.price = priceMatches[0];
 
         // Summary
-        const bt = bodyText.replace(/\\s+/g, ' ').trim();
+        const bt = bodyText.replace(/\s+/g, ' ').trim();
         const sents = bt.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
         extractedData.summary = sents.slice(0, 4).join('. ').substring(0, 600) + (sents.length ? '...' : '');
 
@@ -552,17 +645,17 @@ async function extractPageData(url) {
           return clone.body ? clone.body.innerText : '';
         });
 
-        const cleaned = normalizeText(String(bodyText || '')).replace(/\\s{2,}/g, ' ');
-        const lines = cleaned.split('\\n').map(l => l.trim()).filter(Boolean);
+        const cleaned = normalizeText(String(bodyText || '')).replace(/\s{2,}/g, ' ');
+        const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
         const unique = [...new Set(lines)];
-        const finalText = unique.join('\\n');
+        const finalText = unique.join('\n');
 
         if (finalText && finalText.length > (extractedData.cleanText || '').length) {
           extractedData.cleanText = finalText;
           const sents = finalText.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
           if (!extractedData.title && sents.length) extractedData.title = sents[0].slice(0, 200);
           if (!extractedData.summary && sents.length) extractedData.summary = sents.slice(0, 4).join('. ').substring(0, 600) + '...';
-          const priceRegex = /(R\\$\\s*\\d{1,3}(?:[.,]\\d{3})*(?:[.,]\\d{2})?|\\$\\s*\\d+(?:[.,]\\d+)?|USD\\s*\\d+)/gi;
+          const priceRegex = /(R\$\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?|\$\s*\d+(?:[.,]\d+)?|USD\s*\d+)/gi;
           const pm = finalText.match(priceRegex);
           if (pm && pm.length && !extractedData.price) extractedData.price = pm[0];
           const ctaMatch = unique.find(l => /comprar|quero|adquirir|saiba mais|inscreva-se|assine|compre|agora|garanta/i.test(l));
@@ -575,13 +668,13 @@ async function extractPageData(url) {
         if (Tesseract) {
           try {
             const imgs = await page.$$eval('img[src]', els =>
-              els.map(img => img.src).filter(src => src && !src.startsWith('data:')).slice(0, 10)
+              els.map(img => img.src).filter(src => src && !src.startsWith('data:')).slice(0, 20)
             );
             if (imgs && imgs.length) {
               const ocrTexts = await extractTextFromImages(imgs);
               if (ocrTexts && ocrTexts.length) {
                 extractedData.imagesText = ocrTexts;
-                extractedData.cleanText += '\\n' + ocrTexts.join('\\n');
+                extractedData.cleanText += '\n' + ocrTexts.join('\n');
                 logger.info('🔍 OCR via Puppeteer extraído: ' + ocrTexts.slice(0,3).map(t=>t.slice(0,100)).join(' | '));
               }
             }
@@ -605,12 +698,12 @@ async function extractPageData(url) {
         const $ = cheerio.load(html);
         const imgs = $('img[src]').map((i, el) => $(el).attr('src')).get()
           .filter(src => src && !src.startsWith('data:'))
-          .slice(0, 5);
+          .slice(0, 20);
         if (imgs.length) {
           const ocrTexts = await extractTextFromImages(imgs);
           if (ocrTexts && ocrTexts.length) {
             extractedData.imagesText = ocrTexts;
-            extractedData.cleanText += '\\n' + ocrTexts.join('\\n');
+            extractedData.cleanText += '\n' + ocrTexts.join('\n');
             logger.info('🔍 OCR via Cheerio extraído: ' + ocrTexts.slice(0,3).map(t=>t.slice(0,100)).join(' | '));
           }
         }
@@ -627,11 +720,11 @@ async function extractPageData(url) {
         extractedData.cleanText = '';
       }
       if (!extractedData.title && extractedData.cleanText) {
-        const firstLine = extractedData.cleanText.split('\\n').find(l => l && l.length > 5);
+        const firstLine = extractedData.cleanText.split('\n').find(l => l && l.length > 5);
         if (firstLine) extractedData.title = firstLine.slice(0, 200);
       }
       if (!extractedData.summary && extractedData.cleanText) {
-        const sents = extractedData.cleanText.split(/(?<=[.!?])\\s+/).filter(Boolean);
+        const sents = extractedData.cleanText.split(/(?<=[.!?])\s+/).filter(Boolean);
         extractedData.summary = sents.slice(0, 4).join('. ').slice(0, 600) + (sents.length ? '...' : '');
       }
     } catch (e) {
@@ -646,6 +739,7 @@ async function extractPageData(url) {
     return { title: '', description: '', price: '', benefits: [], testimonials: [], cta: '', summary: '', cleanText: '', imagesText: [], url };
   }
 }
+
 
 // ===== LLM calls (GROQ -> OpenAI -> OpenRouter) =====
 async function callGroq(messages, temperature = 0.4, max_tokens = 400, presence_penalty = 0.0, frequency_penalty = 0.0) {
@@ -688,128 +782,84 @@ async function callOpenRouter(messages, temperature = 0.0, max_tokens = 400) {
 
 // ===== Orchestration: generateAIResponse =====
 async function generateAIResponse(userMessage, pageData = {}, conversation = [], instructions = '') {
-  const salesMode = shouldActivateSalesMode(instructions);
-  const instrOpts = parseInstructions(instructions);
+  try {
+    const salesMode = shouldActivateSalesMode(instructions);
+    const instrOpts = parseInstructions(instructions);
 
-  // Direct link override
-  if (userAskedForLink(userMessage) && pageData && pageData.url) {
-    const theUrl = pageData.url;
+    // Direct link override
+    if (userAskedForLink(userMessage) && pageData && pageData.url) {
+      const theUrl = pageData.url;
+      if (salesMode) {
+        return `🌟 Aqui está o link oficial: ${theUrl}\nQuer que eu te envie o passo a passo para garantir agora? 🚀`;
+      }
+      return `Aqui está o link oficial: ${theUrl}`;
+    }
+
+    const systemLines = [
+      "Você é um assistente inteligente. Responda de forma curta, clara e útil.",
+      "Nunca invente dados. Use apenas informações da página extraída ou instruções."
+    ];
     if (salesMode) {
-      return `🌟 Aqui está o link oficial: ${theUrl}\nQuer que eu te envie o passo a passo para garantir agora? 🚀`;
+      systemLines.push("Tom de voz: amigável, consultivo e entusiasmado. Finalize com CTA para compra quando relevante.");
+    } else {
+      systemLines.push("Tom: conciso e objetivo; respostas curtas.");
     }
-    return `Aqui está o link oficial: ${theUrl}`;
-  }
+    const systemPrompt = systemLines.join('\n');
 
-  const systemLines = [
-    "Você é um assistente inteligente. Responda de forma curta, clara e útil.",
-    "Nunca invente dados. Use apenas informações da página extraída ou instruções."
-  ];
-  if (salesMode) {
-    systemLines.push("Tom de voz: amigável, consultivo e entusiasmado. Finalize com CTA para compra quando relevante.");
-  } else {
-    systemLines.push("Tom: conciso e objetivo; respostas curtas.");
-  }
-  const systemPrompt = systemLines.join('\n');
+    const pageSummary = `Resumo da página:\nTítulo: ${pageData.title || ''}\nDescrição: ${pageData.description || ''}\nPreço: ${pageData.price || ''}\nBenefícios: ${Array.isArray(pageData.benefits) ? pageData.benefits.join(', ') : pageData.benefits || ''}\nCTA: ${pageData.cta || ''}\nEvidências (trechos):\n${(pageData.summary || pageData.cleanText || '').slice(0, 2000)}`;
 
-  const pageSummary = `Resumo da página:\nTítulo: ${pageData.title || ''}\nDescrição: ${pageData.description || ''}\nPreço: ${pageData.price || ''}\nBenefícios: ${Array.isArray(pageData.benefits) ? pageData.benefits.join(', ') : pageData.benefits || ''}\nCTA: ${pageData.cta || ''}\nEvidências (trechos):\n${(pageData.summary || pageData.cleanText || '').slice(0, 2000)}`;
+    const userPrompt = `${instructions ? 'Instruções do painel: ' + instructions + '\n\n' : ''}${pageSummary}\n\nPergunta do usuário:\n${userMessage}\n\nResponda de forma concisa conforme as regras acima.`;
 
-  const userPrompt = `${instructions ? 'Instruções do painel: ' + instructions + '\n\n' : ''}${pageSummary}\n\nPergunta do usuário:\n${userMessage}\n\nResponda de forma concisa conforme as regras acima.`;
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...((conversation || []).slice(-6).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.message }))),
+      { role: 'user', content: userPrompt }
+    ];
 
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    ...((conversation || []).slice(-6).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.message }))),
-    { role: 'user', content: userPrompt }
-  ];
-
-  // Try GROQ
-  if (process.env.GROQ_API_KEY) {
-    try {
-      const groqResp = await callGroq(messages, parseFloat(process.env.GROQ_TEMP || '0.4'), parseInt(process.env.GROQ_MAX_TOKENS || '400', 10), parseFloat(process.env.GROQ_PRESENCE_PENALTY || '0.0'), parseFloat(process.env.GROQ_FREQ_PENALTY || '0.0'));
-      if (groqResp && groqResp.trim()) return clampSentences(groqResp.trim(), Math.max(1, instrOpts.maxSentences || 2));
-    } catch (err) {
-      logger.warn('GROQ failed, will try OpenAI. Error: ' + (err && err.message ? err.message : err));
+    // Try GROQ
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const groqResp = await callGroq(messages, parseFloat(process.env.GROQ_TEMP || '0.4'), parseInt(process.env.GROQ_MAX_TOKENS || '400', 10), parseFloat(process.env.GROQ_PRESENCE_PENALTY || '0.0'), parseFloat(process.env.GROQ_FREQ_PENALTY || '0.0'));
+        if (groqResp && groqResp.trim()) return clampSentences(groqResp.trim(), Math.max(1, instrOpts.maxSentences || 2));
+      } catch (err) {
+        logger.warn('GROQ failed, will try OpenAI. Error: ' + (err && err.message ? err.message : err));
+      }
     }
-  }
 
-  // Try OpenAI
-  if (process.env.OPENAI_API_KEY) {
-    try {
-      const openaiResp = await callOpenAI(messages, parseFloat(process.env.OPENAI_TEMP || '0.2'), parseInt(process.env.OPENAI_MAX_TOKENS || '400', 10), parseFloat(process.env.OPENAI_PRESENCE_PENALTY || '0.0'), parseFloat(process.env.OPENAI_FREQ_PENALTY || '0.0'));
-      if (openaiResp && openaiResp.trim()) return clampSentences(openaiResp.trim(), Math.max(1, instrOpts.maxSentences || 2));
-    } catch (err) {
-      logger.warn('OpenAI failed, will try OpenRouter if available. Error: ' + (err && err.message ? err.message : err));
+    // Try OpenAI
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const openaiResp = await callOpenAI(messages, parseFloat(process.env.OPENAI_TEMP || '0.2'), parseInt(process.env.OPENAI_MAX_TOKENS || '400', 10), parseFloat(process.env.OPENAI_PRESENCE_PENALTY || '0.0'), parseFloat(process.env.OPENAI_FREQ_PENALTY || '0.0'));
+        if (openaiResp && openaiResp.trim()) return clampSentences(openaiResp.trim(), Math.max(1, instrOpts.maxSentences || 2));
+      } catch (err) {
+        logger.warn('OpenAI failed, will try OpenRouter if available. Error: ' + (err && err.message ? err.message : err));
+      }
     }
-  }
 
-  // Try OpenRouter
-  if (process.env.OPENROUTER_API_KEY) {
-    try {
-      const orResp = await callOpenRouter(messages, parseFloat(process.env.OPENROUTER_TEMP || '0.0'), parseInt(process.env.OPENROUTER_MAX_TOKENS || '400', 10));
-      if (orResp && orResp.trim()) return clampSentences(orResp.trim(), Math.max(1, instrOpts.maxSentences || 2));
-    } catch (err) {
-      logger.warn('OpenRouter failed. Error: ' + (err && err.message ? err.message : err));
+    // Try OpenRouter
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        const orResp = await callOpenRouter(messages, parseFloat(process.env.OPENROUTER_TEMP || '0.0'), parseInt(process.env.OPENROUTER_MAX_TOKENS || '400', 10));
+        if (orResp && orResp.trim()) return clampSentences(orResp.trim(), Math.max(1, instrOpts.maxSentences || 2));
+      } catch (err) {
+        logger.warn('OpenRouter failed. Error: ' + (err && err.message ? err.message : err));
+      }
     }
-  }
 
-  // Local fallback
-  const ua = universalAnswer(pageData, userMessage, instructions);
-  if (ua && ua.answer) return ua.answer;
-  return NOT_FOUND_MSG;
+    // Local fallback
+    const ua = universalAnswer(pageData, userMessage, instructions);
+    if (ua && ua.answer) return ua.answer;
+    return NOT_FOUND_MSG;
+
+  } catch (err) {
+    logger.error('generateAIResponse erro: ' + (err && err.message ? err.message : err));
+    return NOT_FOUND_MSG;
+  }
 }
 
-// ===== Routes =====
+// ===== Routes: chat-universal, chatbot UI, root =====
 
-// Health
-app.get('/health', (req, res) => res.json({ ok: true, uptime: process.uptime() }));
-
-// New /scrape endpoint (lightweight extraction + bonuses detect)
-function extractBonuses(text) {
-  const bonuses = [];
-  if (!text) return bonuses;
-  // capture "bônus" or "bonus" followed by up to ~120 chars of content
-  const regex = /(?:bônus|bonus)[\s:–-]*([^.;\n]{1,240})/ig;
-  let m;
-  while ((m = regex.exec(text)) !== null) {
-    const candidate = (m[1] || '').trim();
-    if (candidate) bonuses.push(candidate.length > 200 ? candidate.slice(0,200) + '…' : candidate);
-  }
-  return bonuses;
-}
-
-app.post('/scrape', async (req, res) => {
-  const { url, question } = req.body || {};
-  if (!url) return res.status(400).json({ error: 'URL é obrigatória' });
-
-  try {
-    const data = await extractPageData(url);
-    const combinedText = normalizeText(`${data.cleanText || ''}\n${(data.imagesText || []).join('\n') || ''}`).slice(0, 20000);
-    const bonuses = extractBonuses(combinedText);
-    return res.json({
-      url: data.url || url,
-      question: question || null,
-      extracted: combinedText.slice(0, 5000),
-      bonuses
-    });
-  } catch (err) {
-    logger.error('Error on /scrape: ' + (err && err.message ? err.message : err));
-    return res.status(500).json({ error: 'Falha ao processar URL' });
-  }
-});
-
-// /extract - returns full extracted page data (cached)
-app.post('/extract', async (req, res) => {
-  try {
-    const { url } = req.body || {};
-    if (!url) return res.status(400).json({ error: 'url é obrigatório' });
-    const data = await extractPageData(url);
-    return res.json({ success: true, data });
-  } catch (err) {
-    logger.error('extract route error', err && err.message ? err.message : err);
-    return res.status(500).json({ success: false, error: 'erro ao extrair' });
-  }
-});
-
-// /chat-universal - main chat endpoint used by the embedded UI
+// /chat-universal - main chat endpoint used by embedded UI
 app.post('/chat-universal', async (req, res) => {
   try {
     const { message, pageData, url, conversationId, instructions = '', robotName } = req.body || {};
@@ -821,13 +871,36 @@ app.post('/chat-universal', async (req, res) => {
       pd = await extractPageData(url);
     }
 
-    // add lightweight metadata
+    // enrich metadata using helpers (safe - small processing)
     try {
-      pd.bonuses_detected = extractBonuses(pd.cleanText || '');
-      pd.price_detected = detectPricesFromSource(pd.cleanText || '') || null;
+      const combined = (pd.cleanText || '') + '\n' + ((pd.imagesText || []).join('\n') || '');
+      pd.bonuses_detected = extractBonuses(combined);
+      pd.price_detected = extractPrices(combined);
+      pd.price_info = detectPricesFromSource(combined) || null;
+      pd.guarantee_detected = extractGuarantees(combined);
+      pd.cta_detected = extractCTAs(combined);
+      pd.bullets = extractBullets(combined);
+      pd.testimonials = extractTestimonials(((pd.imagesText || []).join('\n')) + '\n' + (pd.cleanText || ''));
     } catch (e) {
-      logger.warn('metadata detection failed', e && e.message ? e.message : e);
+      logger.warn('metadata detection failed', e && e.message ? e.message : String(e));
     }
+
+    // Log structured context (truncated for safety)
+    try {
+      const contextLog = {
+        title: pd.title || null,
+        description: pd.description || null,
+        prices: pd.price_detected || [],
+        price_info: pd.price_info || null,
+        guarantees: pd.guarantee_detected || [],
+        ctas: pd.cta_detected || [],
+        bonuses: pd.bonuses_detected || [],
+        bullets: pd.bullets || [],
+        testimonials_count: (pd.testimonials || []).length || 0,
+        cleanText_snippet: (pd.cleanText || '').slice(0, 1000)
+      };
+      logger.info({ message: 'Contexto rico montado para chat-universal', context: contextLog });
+    } catch (e) {}
 
     const conversation = []; // ephemeral by default
     const reply = await generateAIResponse(message, pd, conversation, instructions);
@@ -849,7 +922,7 @@ app.post('/chat-universal', async (req, res) => {
   }
 });
 
-// Minimal embedded UI
+// Minimal embedded UI route /chatbot
 app.get('/chatbot', async (req, res) => {
   try {
     const robotName = req.query.name || '@Assistente';
@@ -872,11 +945,34 @@ app.get('/', (req, res) => {
   return res.send('<h2>🚀 LinkMágico Chatbot ativo</h2><p>Coloque seus arquivos estáticos na pasta /public para ativar o painel.</p>');
 });
 
+
+// ===== Health check =====
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ===== Extraction endpoint =====
+app.post('/extract', async (req, res) => {
+  try {
+    const { url } = req.body || {};
+    if (!url) return res.status(400).json({ success: false, error: 'url é obrigatório' });
+    const data = await extractPageData(url);
+    return res.json({ success: true, data });
+  } catch (err) {
+    logger.error('extract endpoint error', err?.message || err);
+    return res.status(500).json({ success: false, error: 'erro interno ao extrair página' });
+  }
+});
+
 // ===== Start Server =====
 const PORT = parseInt(process.env.PORT || process.env.PORT_INTERNAL || '3000', 10);
 app.listen(PORT, () => logger.info({ message: `Server rodando na porta ${PORT}`, level: 'info', timestamp: new Date().toISOString() }));
 
-// ===== Helper: minimal UI generator =====
+// ===== Helper: minimal UI generator (HTML) =====
 function generateChatbotHTML(pageData = {}, robotName = '@Assistente', customInstructions = '') {
   const escapedPageData = JSON.stringify(pageData || {});
   const safeRobotName = String(robotName || '@assistente').replace(/"/g, '\\"');
@@ -936,9 +1032,9 @@ textarea{width:100%;min-height:56px;border-radius:10px;padding:8px;border:1px so
   function normalizeUrlForCompare(u) {
     try {
       if (!u) return '';
-      return String(u).trim().replace(/\\/+$/, '').toLowerCase();
+      return String(u).trim().replace(/\/+$/, '').toLowerCase();
     } catch (e) {
-      return String(u || '').replace(/\\/+$/, '').toLowerCase();
+      return String(u || '').replace(/\/+$/, '').toLowerCase();
     }
   }
 
@@ -950,7 +1046,7 @@ textarea{width:100%;min-height:56px;border-radius:10px;padding:8px;border:1px so
     contentDiv.className = 'message-content';
 
     // convert plain URLs into safe clickable anchors (no innerHTML used)
-    const urlRegex = /https?:\/\/[^\\s]+/g;
+    const urlRegex = /https?:\/\/[^\s]+/g;
     let lastIndex = 0;
     let match;
     while ((match = urlRegex.exec(content)) !== null) {
@@ -1020,5 +1116,3 @@ textarea{width:100%;min-height:56px;border-radius:10px;padding:8px;border:1px so
 </body>
 </html>`;
 }
-
-module.exports = app;
