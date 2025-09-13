@@ -793,27 +793,39 @@ app.post('/chat-universal', async (req, res) => {
     if (!pd) {
       if (!url) return res.status(400).json({ success: false, error: 'pageData ou url requerido' });
       pd = await extractPageData(url);
+      pd.bonuses_detected = extractBonuses(pd.cleanText || "");
+      pd.price_detected = extractPrices(pd.cleanText || "");
+      pd.guarantee_detected = extractGuarantees(pd.cleanText || "");
+      pd.cta_detected = extractCTAs(pd.cleanText || "");
+      pd.bullets = extractBullets(pd.cleanText || "");
+      pd.testimonials = extractTestimonials((pd.imagesText || []).join("
+"));
     }
 
-    // Conversation is ephemeral by default
-    const conversation = []; // Could be replaced by persistent store keyed by conversationId
+    const context = `
+TÍTULO: ${pd.title}
+DESCRIÇÃO: ${pd.description}
+PREÇOS DETECTADOS: ${(pd.price_detected||[]).join(", ")}
+GARANTIAS: ${(pd.guarantee_detected||[]).join(", ")}
+CTAS: ${(pd.cta_detected||[]).join(" | ")}
+BÔNUS: ${(pd.bonuses_detected||[]).join(" | ")}
+BENEFÍCIOS: ${(pd.bullets||[]).join(" | ")}
+TESTEMUNHOS: ${(pd.testimonials||[]).join(" | ")}
+TEXTO PRINCIPAL:
+${pd.cleanText}
+OCR:
+${(pd.imagesText||[]).join("
+")}
+`;
 
-    const reply = await generateAIResponse(message, pd, conversation, instructions);
-
-    // Append page link if not present
-    let finalReply = reply;
-    try {
-      if (pd && pd.url && !String(finalReply).includes(pd.url)) {
-        finalReply = `${finalReply}\n\n${pd.url}`;
-      }
-    } catch (e) {
-      logger.warn('Erro ao forçar inclusão do link no final da resposta', e && e.message ? e.message : e);
-    }
-
-    return res.json({ success: true, response: finalReply });
+    const conversation = [];
+    const reply = await generateAIResponse(message, context, conversation, instructions);
+    return res.json({ success: true, response: reply });
   } catch (err) {
-    logger.error('chat-universal error', err && err.message ? err.message : err);
+    logger.error('chat-universal error', err?.message || err);
     return res.status(500).json({ success: false, error: 'erro interno ao gerar resposta' });
+  }
+});
   }
 });
 
