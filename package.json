@@ -1,6 +1,6 @@
 {
   "name": "linkmagico-v6-plus-v7-integrated",
-  "version": "6.7.0",
+  "version": "6.7.1",
   "description": "Link Mágico v6.0 + v7.0 Integrado - IA Conversacional com Demos Públicos, Dashboard Analytics e Widget Embedável",
   "main": "server.js",
   "scripts": {
@@ -10,7 +10,9 @@
     "health": "curl -f http://localhost:3000/health || exit 1",
     "status": "curl -s http://localhost:3000/status | jq .",
     "logs": "tail -f app.log",
-    "deploy-check": "node scripts/deploy-check.js"
+    "deploy-check": "node scripts/deploy-check.js",
+    "lint": "eslint .",
+    "render-build": "npm install && npm run build || true"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -30,7 +32,16 @@
   "devDependencies": {
     "nodemon": "^3.0.2",
     "jest": "^29.7.0",
-    "supertest": "^6.3.3"
+    "supertest": "^6.3.3",
+    "eslint": "^8.56.0"
+  },
+  "optionalDependencies": {
+    "puppeteer": "^21.0.0",
+    "tesseract.js": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "keywords": [
     "linkmagico",
@@ -48,10 +59,6 @@
     "nodejs-express",
     "render-deployment"
   ],
-  "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=8.0.0"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Edvaldols1231/Link-M-gico-v6.0.git"
@@ -80,22 +87,11 @@
       "api": 100
     }
   },
-  "demo_urls": {
-    "production": "https://link-m-gico-v6-0-dx0q.onrender.com",
-    "homepage": "/",
-    "dashboard_demo": "/dashboard/demo",
-    "widget_demo": "/widget/demo",
-    "widget_embed": "/widget.js",
-    "api_status": "/api/public/status",
-    "docs": "/docs",
-    "health": "/health",
-    "analytics": "/analytics"
-  },
   "api_providers": {
     "primary": "GROQ",
     "fallback_order": [
       "OpenAI",
-      "OpenRouter", 
+      "OpenRouter",
       "Native"
     ],
     "endpoints": {
@@ -103,151 +99,5 @@
       "extract": "/extract",
       "status": "/status"
     }
-  },
-  "features": {
-    "v6_original": {
-      "chat_universal": true,
-      "data_extraction": true,
-      "analytics_dashboard": true,
-      "multi_ai_support": true,
-      "fallback_system": true
-    },
-    "v7_integrated": {
-      "public_demos": true,
-      "dashboard_demo": true,
-      "widget_embedable": true,
-      "rate_limiting": true,
-      "structured_logging": true,
-      "api_documentation": true,
-      "health_monitoring": true
-    }
-  },
-  "rate_limits": {
-    "dashboard_demo": {
-      "window": "10min",
-      "max": 50,
-      "description": "Dashboard demo público"
-    },
-    "widget_embed": {
-      "window": "5min", 
-      "max": 200,
-      "description": "Widget embedável"
-    },
-    "api_public": {
-      "window": "15min",
-      "max": 100,
-      "description": "API pública para testes"
-    },
-    "chat_universal": {
-      "window": "15min",
-      "max": 100,
-      "description": "Chat com IA"
-    },
-    "general": {
-      "window": "1min",
-      "max": 1000,
-      "description": "Proteção DDoS"
-    }
-  },
-  "environment_variables": {
-    "required": [
-      "PORT",
-      "NODE_ENV"
-    ],
-    "api_keys": [
-      "GROQ_API_KEY",
-      "OPENAI_API_KEY", 
-      "OPENROUTER_API_KEY"
-    ],
-    "optional": [
-      "RENDER_EXTERNAL_URL",
-      "ALLOWED_EMBED_DOMAINS"
-    ]
-  },
-  "deployment": {
-    "platform": "render",
-    "build_command": "npm install",
-    "start_command": "npm start",
-    "health_check": "/health",
-    "auto_deploy": true
-  },
-  "monitoring": {
-    "logs": {
-      "file": "app.log",
-      "level": "info",
-      "format": "json"
-    },
-    "metrics": {
-      "uptime": "/status",
-      "health": "/health",
-      "analytics": "/api/public/status"
-    }
-  },
-  "security": {
-    "helmet": true,
-    "cors": true,
-    "rate_limiting": true,
-    "input_validation": true,
-    "api_fallbacks": 3
-  },
-  "performance": {
-    "compression": true,
-    "static_cache": true,
-    "request_timeout": "15s",
-    "response_cache": "30min"
-  },
-  "widget_integration": {
-    "file": "/widget.js",
-    "size": "~5KB",
-    "load_time": "<2s",
-    "mobile_responsive": true,
-    "customizable": true,
-    "embed_code": "Disponível em /widget/demo"
-  },
-  "api_compatibility": {
-    "groq": {
-      "model": "mixtral-8x7b-32768",
-      "timeout": "10s",
-      "priority": 1
-    },
-    "openai": {
-      "model": "gpt-3.5-turbo",
-      "timeout": "10s", 
-      "priority": 2
-    },
-    "openrouter": {
-      "model": "microsoft/wizardlm-2-8x22b",
-      "timeout": "10s",
-      "priority": 3
-    },
-    "native": {
-      "fallback": true,
-      "priority": 4
-    }
-  },
-  "browser_support": {
-    "chrome": ">=60",
-    "firefox": ">=55", 
-    "safari": ">=12",
-    "edge": ">=79",
-    "mobile": "iOS 12+, Android 7+"
-  },
-  "integration_examples": {
-    "widget_basic": "Código em /widget/demo",
-    "api_curl": "Exemplos em /docs",
-    "dashboard": "Demo em /dashboard/demo"
-  },
-  "changelog": {
-    "6.7.0": "Integração completa v6.0 + v7.0",
-    "6.0.0": "Versão original estável",
-    "7.0.0": "Demos públicos e widget"
-  },
-  "roadmap": {
-    "próximas_features": [
-      "Dashboard customizável",
-      "Múltiplos idiomas", 
-      "Analytics avançadas",
-      "Integrações webhook"
-    ]
   }
 }
