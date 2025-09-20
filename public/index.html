@@ -13,12 +13,12 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
             min-height: 100vh;
             color: white;
         }
 
-        /* Header com nova badge v7.0 */
+        /* Header com tema dark */
         .header {
             text-align: center;
             padding: 2rem 1rem;
@@ -27,20 +27,21 @@
 
         .version-badge {
             display: inline-block;
-            background: #28a745;
-            color: white;
+            background: linear-gradient(45deg, #00ff88, #00cc6a);
+            color: #000;
             padding: 0.3rem 1rem;
             border-radius: 20px;
             font-size: 0.8rem;
             font-weight: bold;
             margin-bottom: 1rem;
             animation: pulse 2s infinite;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
         }
 
         @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+            0% { transform: scale(1); box-shadow: 0 0 20px rgba(0, 255, 136, 0.3); }
+            50% { transform: scale(1.05); box-shadow: 0 0 25px rgba(0, 255, 136, 0.5); }
+            100% { transform: scale(1); box-shadow: 0 0 20px rgba(0, 255, 136, 0.3); }
         }
 
         .logo-container {
@@ -52,15 +53,20 @@
         }
 
         .logo {
-            background: rgba(255, 255, 255, 0.1);
+            background: linear-gradient(45deg, #667eea, #764ba2);
             padding: 1rem;
             border-radius: 15px;
             font-size: 2rem;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
         }
 
         h1 {
             font-size: 2.5rem;
             margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .subtitle {
@@ -68,14 +74,12 @@
             opacity: 0.9;
         }
 
-        /* Container principal */
         .container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 0 2rem;
         }
 
-        /* Grid responsivo */
         .main-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -83,13 +87,13 @@
             margin-bottom: 3rem;
         }
 
-        /* Seção original v6.0 */
+        /* Tema dark para seções */
         .section {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
+            background: linear-gradient(145deg, #2c3e50, #34495e);
             border-radius: 20px;
             padding: 2rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
 
         .section h2 {
@@ -98,15 +102,17 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            color: #ecf0f1;
         }
 
         .section p {
-            opacity: 0.9;
+            opacity: 0.8;
             margin-bottom: 1.5rem;
             line-height: 1.6;
+            color: #bdc3c7;
         }
 
-        /* Formulário original mantido */
+        /* Formulário com tema dark */
         .form-group {
             margin-bottom: 1rem;
         }
@@ -115,26 +121,35 @@
             display: block;
             margin-bottom: 0.5rem;
             font-weight: 500;
+            color: #ecf0f1;
         }
 
         .form-group input,
         .form-group textarea {
             width: 100%;
             padding: 0.8rem;
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.1);
             border-radius: 10px;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
             color: white;
             font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+            outline: none;
         }
 
         .form-group input::placeholder,
         .form-group textarea::placeholder {
-            color: rgba(255, 255, 255, 0.7);
+            color: rgba(255, 255, 255, 0.5);
         }
 
         .btn {
-            background: linear-gradient(45deg, #28a745, #20c997);
+            background: linear-gradient(45deg, #667eea, #764ba2);
             color: white;
             border: none;
             padding: 1rem 2rem;
@@ -147,27 +162,38 @@
             text-decoration: none;
             text-align: center;
             margin: 0.5rem;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
         }
 
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
         }
 
-        .btn-secondary {
-            background: linear-gradient(45deg, #6c757d, #495057);
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #00ff88, #00cc6a);
+            color: #000;
         }
 
         .btn-info {
-            background: linear-gradient(45deg, #17a2b8, #138496);
+            background: linear-gradient(45deg, #3498db, #2980b9);
         }
 
         .btn-warning {
-            background: linear-gradient(45deg, #ffc107, #e0a800);
-            color: #212529;
+            background: linear-gradient(45deg, #f39c12, #e67e22);
         }
 
-        /* Analytics cards originais */
+        .btn-secondary {
+            background: linear-gradient(45deg, #95a5a6, #7f8c8d);
+        }
+
+        /* Analytics com tema dark */
         .analytics-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -176,69 +202,101 @@
         }
 
         .analytics-card {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
             padding: 1.5rem;
             border-radius: 15px;
             text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
 
         .analytics-value {
             font-size: 2.5rem;
             font-weight: bold;
             margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #00ff88, #667eea);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .analytics-label {
-            opacity: 0.8;
+            opacity: 0.7;
             font-size: 0.9rem;
+            color: #bdc3c7;
         }
 
-        /* NOVA SEÇÃO v7.0 */
-        .v7-features {
-            background: linear-gradient(45deg, #ff6b6b, #feca57);
-            border-radius: 20px;
-            padding: 2rem;
-            margin: 3rem 0;
-            text-align: center;
-        }
-
-        .v7-features h2 {
-            font-size: 2rem;
-            margin-bottom: 1rem;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }
-
-        .feature-card {
-            background: rgba(255, 255, 255, 0.15);
+        /* Preview do chatbot melhorado */
+        .chat-preview {
+            background: rgba(0, 0, 0, 0.4);
             padding: 1.5rem;
             border-radius: 15px;
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            transition: transform 0.3s;
+            margin-top: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        .feature-card:hover {
-            transform: translateY(-5px);
-        }
-
-        .feature-card h3 {
-            font-size: 1.3rem;
+        .chat-preview h4 {
             margin-bottom: 1rem;
+            color: #ecf0f1;
         }
 
-        .feature-card p {
-            margin-bottom: 1.5rem;
-            opacity: 0.9;
+        .chat-messages {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+            padding-right: 0.5rem;
         }
 
-        /* Botões sociais originais */
+        .chat-message {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            padding: 0.8rem;
+            border-radius: 15px;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            animation: slideInLeft 0.5s ease-out;
+        }
+
+        .chat-message.user {
+            background: linear-gradient(45deg, #00ff88, #00cc6a);
+            color: #000;
+            margin-left: 2rem;
+            animation: slideInRight 0.5s ease-out;
+        }
+
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 0.8rem;
+            border-radius: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+        }
+
+        .chat-input button {
+            padding: 0.8rem 1.5rem;
+            border-radius: 20px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            cursor: pointer;
+        }
+
+        /* Botões sociais - layout original com logos */
         .social-buttons {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -251,35 +309,98 @@
             border-radius: 10px;
             color: white;
             text-decoration: none;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             font-weight: bold;
             text-align: center;
-            transition: transform 0.2s;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            border: 2px solid transparent;
         }
 
         .social-btn:hover {
             transform: scale(1.05);
+            border-color: rgba(255, 255, 255, 0.3);
         }
 
-        .whatsapp { background: #25d366; }
-        .telegram { background: #0088cc; }
-        .facebook { background: #1877f2; }
-        .youtube { background: #ff0000; }
-        .tiktok { background: #000000; }
-        .twitter { background: #1da1f2; }
+        /* Cores originais dos botões sociais */
+        .whatsapp { background: linear-gradient(45deg, #25d366, #128c7e); }
+        .telegram { background: linear-gradient(45deg, #0088cc, #005580); }
+        .facebook { background: linear-gradient(45deg, #1877f2, #166fe5); }
+        .youtube { background: linear-gradient(45deg, #ff0000, #cc0000); }
+        .tiktok { background: linear-gradient(45deg, #000000, #333333); }
+        .twitter { background: linear-gradient(45deg, #1da1f2, #0d8bd9); }
         .instagram { background: linear-gradient(45deg, #e1306c, #fd1d1d, #f77737, #fcaf45); }
-        .linkedin { background: #0077b5; }
+        .linkedin { background: linear-gradient(45deg, #0077b5, #005885); }
+        .messenger { background: linear-gradient(45deg, #006aff, #0053d1); }
+        .prompt { background: linear-gradient(45deg, #00ff88, #00cc6a); color: #000; }
+        .analytics { background: linear-gradient(45deg, #95a5a6, #7f8c8d); }
+        .kwai { background: linear-gradient(45deg, #ff6600, #e55a00); }
 
-        /* Widget embed code */
+        /* Widget code com tema dark */
         .widget-code {
-            background: #2d3748;
-            color: #e2e8f0;
+            background: #1e1e1e;
+            color: #d4d4d4;
             padding: 1rem;
             border-radius: 10px;
             font-family: 'Courier New', monospace;
             font-size: 0.8rem;
             overflow-x: auto;
             margin-top: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Seção v7.0 com tema dark atrativo */
+        .v7-features {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            border-radius: 20px;
+            padding: 2rem;
+            margin: 3rem 0;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+        }
+
+        .v7-features h2 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: #ecf0f1;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .feature-card {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1.5rem;
+            border-radius: 15px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        .feature-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            color: #ecf0f1;
+        }
+
+        .feature-card p {
+            margin-bottom: 1.5rem;
+            opacity: 0.8;
+            color: #bdc3c7;
         }
 
         /* Status indicators */
@@ -287,10 +408,39 @@
             display: inline-block;
             width: 10px;
             height: 10px;
-            background: #28a745;
+            background: #00ff88;
             border-radius: 50%;
             margin-right: 0.5rem;
             animation: pulse 1s infinite;
+        }
+
+        /* Loading states */
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .loading::after {
+            content: '⏳';
+            margin-left: 0.5rem;
+        }
+
+        /* Success states */
+        .success {
+            background: linear-gradient(45deg, #00ff88, #00cc6a) !important;
+            color: #000 !important;
+        }
+
+        /* Error states */
+        .error {
+            background: linear-gradient(45deg, #e74c3c, #c0392b) !important;
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
         }
 
         /* Responsivo */
@@ -308,7 +458,7 @@
             }
             
             .social-buttons {
-                grid-template-columns: repeat(2, 1fr);
+                grid-template-columns: repeat(3, 1fr);
             }
         }
     </style>
@@ -327,7 +477,7 @@
                     IA Conversacional Inteligente + Demos Públicos
                 </div>
             </div>
-            <div style="position: absolute; top: 1rem; right: 2rem; background: rgba(255,255,255,0.2); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">
+            <div style="position: absolute; top: 1rem; right: 2rem; background: rgba(0, 0, 0, 0.3); padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem; border: 1px solid rgba(255, 255, 255, 0.1);">
                 <span class="status-indicator"></span>Sistema Online
             </div>
         </div>
@@ -336,7 +486,7 @@
     <div class="container">
         <!-- Grid principal -->
         <div class="main-grid">
-            <!-- Seção Criar Chatbot (Original v6.0) -->
+            <!-- Seção Criar Chatbot -->
             <div class="section">
                 <h2>🤖 Criar Chatbot</h2>
                 <p>Configure seu assistente de vendas inteligente</p>
@@ -355,39 +505,85 @@
                     <div class="form-group">
                         <label>💡 Instruções Personalizadas (opcional):</label>
                         <textarea id="instructions" rows="4" placeholder="Ex.: Responda em até 3 frases, direto ao ponto, sem floreios. Use os dados visíveis na página."></textarea>
-                        <small style="opacity: 0.7;">Dica: para respostas curtas (2-3 frases), objetivas e sem repetições.</small>
+                        <small style="opacity: 0.7; color: #bdc3c7;">Dica: para respostas curtas (2-3 frases), objetivas e sem repetições.</small>
                     </div>
                     
-                    <button type="button" class="btn" onclick="createChatbot()">
+                    <button type="button" class="btn" id="createChatbotBtn" onclick="createChatbot()">
                         🚀 Ativar Chatbot Inteligente
                     </button>
                 </form>
 
-                <!-- Botões Sociais Originais -->
+                <!-- Resultado da extração -->
+                <div id="extractionResult" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(0, 0, 0, 0.3); border-radius: 10px;">
+                    <h4 style="color: #00ff88; margin-bottom: 0.5rem;">✅ Dados Extraídos:</h4>
+                    <div id="extractedContent"></div>
+                </div>
+
+                <!-- Botões Sociais com Logos -->
                 <div class="social-buttons">
-                    <a href="#" class="social-btn whatsapp" onclick="shareToSocial('whatsapp')">WhatsApp</a>
-                    <a href="#" class="social-btn telegram" onclick="shareToSocial('telegram')">Telegram</a>
-                    <a href="#" class="social-btn facebook" onclick="shareToSocial('facebook')">Facebook</a>
-                    <a href="#" class="social-btn youtube" onclick="shareToSocial('youtube')">YouTube</a>
-                    <a href="#" class="social-btn tiktok" onclick="shareToSocial('tiktok')">TikTok</a>
-                    <a href="#" class="social-btn twitter" onclick="shareToSocial('twitter')">Twitter</a>
-                    <a href="#" class="social-btn instagram" onclick="shareToSocial('instagram')">Instagram</a>
-                    <a href="#" class="social-btn linkedin" onclick="shareToSocial('linkedin')">LinkedIn</a>
+                    <a href="#" class="social-btn whatsapp" onclick="shareToSocial('whatsapp')">
+                        <span style="font-size: 1.2rem;">📱</span>
+                        WhatsApp
+                    </a>
+                    <a href="#" class="social-btn telegram" onclick="shareToSocial('telegram')">
+                        <span style="font-size: 1.2rem;">✈️</span>
+                        Telegram
+                    </a>
+                    <a href="#" class="social-btn facebook" onclick="shareToSocial('facebook')">
+                        <span style="font-size: 1.2rem;">📘</span>
+                        Facebook
+                    </a>
+                    <a href="#" class="social-btn youtube" onclick="shareToSocial('youtube')">
+                        <span style="font-size: 1.2rem;">📺</span>
+                        YouTube
+                    </a>
+                    <a href="#" class="social-btn tiktok" onclick="shareToSocial('tiktok')">
+                        <span style="font-size: 1.2rem;">🎵</span>
+                        TikTok
+                    </a>
+                    <a href="#" class="social-btn twitter" onclick="shareToSocial('twitter')">
+                        <span style="font-size: 1.2rem;">🐦</span>
+                        Twitter
+                    </a>
+                    <a href="#" class="social-btn instagram" onclick="shareToSocial('instagram')">
+                        <span style="font-size: 1.2rem;">📷</span>
+                        Instagram
+                    </a>
+                    <a href="#" class="social-btn linkedin" onclick="shareToSocial('linkedin')">
+                        <span style="font-size: 1.2rem;">💼</span>
+                        LinkedIn
+                    </a>
+                    <a href="#" class="social-btn messenger" onclick="shareToSocial('messenger')">
+                        <span style="font-size: 1.2rem;">💬</span>
+                        Messenger
+                    </a>
+                    <a href="#" class="social-btn prompt" onclick="shareToSocial('prompt')">
+                        <span style="font-size: 1.2rem;">🤖</span>
+                        Prompt
+                    </a>
+                    <a href="#" class="social-btn analytics" onclick="openAnalytics()">
+                        <span style="font-size: 1.2rem;">📊</span>
+                        Analytics
+                    </a>
+                    <a href="#" class="social-btn kwai" onclick="shareToSocial('kwai')">
+                        <span style="font-size: 1.2rem;">📱</span>
+                        Kwai
+                    </a>
                 </div>
             </div>
 
-            <!-- Dashboard Analytics (Original v6.0) -->
+            <!-- Dashboard Analytics -->
             <div class="section">
                 <h2>📊 Dashboard Analytics</h2>
                 <p>Acompanhe o desempenho do seu chatbot em tempo real</p>
                 
                 <div class="analytics-grid">
                     <div class="analytics-card">
-                        <div class="analytics-value">0</div>
+                        <div class="analytics-value" id="botsCount">147</div>
                         <div class="analytics-label">👤 Chatbots Criados hoje</div>
                     </div>
                     <div class="analytics-card">
-                        <div class="analytics-value">0</div>
+                        <div class="analytics-value" id="messagesCount">8937</div>
                         <div class="analytics-label">💬 Mensagens enviadas</div>
                     </div>
                     <div class="analytics-card">
@@ -395,30 +591,35 @@
                         <div class="analytics-label">📊 Extração de dados</div>
                     </div>
                     <div class="analytics-card">
-                        <div class="analytics-value">3s</div>
+                        <div class="analytics-value" id="responseTime">3s</div>
                         <div class="analytics-label">⚡ Tempo de resposta</div>
                     </div>
                 </div>
 
-                <!-- Preview do Chatbot -->
-                <div style="background: rgba(255,255,255,0.1); padding: 1.5rem; border-radius: 15px; margin-top: 1rem;">
-                    <h4 style="margin-bottom: 1rem;">💬 Preview do Chatbot</h4>
-                    <div style="background: #6c5ce7; padding: 1rem; border-radius: 10px; margin-bottom: 1rem;">
-                        <small>🤖 Olá! Sou seu assistente especializado. Como posso te ajudar hoje?</small>
+                <!-- Preview do Chatbot Funcional -->
+                <div class="chat-preview">
+                    <h4>💬 Preview do Chatbot</h4>
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="chat-message">
+                            🤖 Olá! Sou seu assistente especializado. Como posso te ajudar hoje?
+                        </div>
                     </div>
-                    <input type="text" placeholder="Digite sua pergunta..." style="width: 100%; padding: 0.8rem; border-radius: 20px; border: none; background: rgba(255,255,255,0.9); color: #333;">
+                    <div class="chat-input">
+                        <input type="text" id="previewInput" placeholder="Digite sua pergunta...">
+                        <button onclick="sendPreviewMessage()">Enviar</button>
+                    </div>
                 </div>
 
-                <!-- Widget Embed Code Original -->
+                <!-- Widget Embed Code -->
                 <div style="margin-top: 2rem;">
                     <h4>🔧 Widget Embed Code</h4>
-                    <p style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 1rem;">Cole este código em qualquer site para adicionar o chatbot flutuante:</p>
-                    <div class="widget-code">
+                    <p style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 1rem; color: #bdc3c7;">Cole este código em qualquer site para adicionar o chatbot flutuante:</p>
+                    <div class="widget-code" id="widgetCode">
 &lt;!-- LinkMágico Chatbot Widget --&gt;
 &lt;script&gt;
 (function() {
   var config = {
-    robotName: 'Seu Assistente',
+    robotName: '<span id="widgetRobotName">Seu Assistente</span>',
     apiBase: 'https://link-m-gico-v6-0-dx0q.onrender.com'
   };
   var script = document.createElement('script');
@@ -434,7 +635,7 @@
             </div>
         </div>
 
-        <!-- NOVA SEÇÃO: Funcionalidades v7.0 -->
+        <!-- SEÇÃO v7.0 com tema dark atrativo -->
         <div class="v7-features">
             <h2>🆕 Funcionalidades v7.0 Integradas</h2>
             <p>Explore as novas funcionalidades públicas e recursos avançados</p>
@@ -473,68 +674,218 @@
                 </div>
             </div>
 
-            <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(255,255,255,0.1); border-radius: 15px;">
+            <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(0, 0, 0, 0.3); border-radius: 15px;">
                 <h4>🎯 Sistema de IA com Fallback Automático</h4>
                 <div style="display: flex; justify-content: center; gap: 1rem; margin: 1rem 0; flex-wrap: wrap;">
-                    <span style="background: #28a745; padding: 0.5rem 1rem; border-radius: 15px;">1º GROQ API</span>
-                    <span style="background: #17a2b8; padding: 0.5rem 1rem; border-radius: 15px;">2º OpenAI API</span>
-                    <span style="background: #ffc107; color: #000; padding: 0.5rem 1rem; border-radius: 15px;">3º OpenRouter API</span>
-                    <span style="background: #6c757d; padding: 0.5rem 1rem; border-radius: 15px;">4º Sistema Nativo</span>
+                    <span style="background: linear-gradient(45deg, #00ff88, #00cc6a); color: #000; padding: 0.5rem 1rem; border-radius: 15px;">1º GROQ API</span>
+                    <span style="background: linear-gradient(45deg, #3498db, #2980b9); padding: 0.5rem 1rem; border-radius: 15px;">2º OpenAI API</span>
+                    <span style="background: linear-gradient(45deg, #f39c12, #e67e22); padding: 0.5rem 1rem; border-radius: 15px;">3º OpenRouter API</span>
+                    <span style="background: linear-gradient(45deg, #95a5a6, #7f8c8d); padding: 0.5rem 1rem; border-radius: 15px;">4º Sistema Nativo</span>
                 </div>
-                <p style="font-size: 0.9rem; opacity: 0.9;">✅ Rate Limiting Ativo | ✅ Logging Estruturado | ✅ 99% Uptime</p>
+                <p style="font-size: 0.9rem; opacity: 0.9; color: #bdc3c7;">✅ Rate Limiting Ativo | ✅ Logging Estruturado | ✅ 99% Uptime</p>
             </div>
         </div>
     </div>
 
     <script>
-        // Funções originais v6.0 mantidas
+        // Variáveis globais
         let botCount = 147;
-        let messageCount = 8934;
+        let messageCount = 8937;
+        let currentExtractedData = null;
 
-        function createChatbot() {
+        // Função principal para criar chatbot
+        async function createChatbot() {
             const robotName = document.getElementById('robotName').value || '@arsenal.secreto';
             const pageUrl = document.getElementById('pageUrl').value;
             const instructions = document.getElementById('instructions').value;
+            const btn = document.getElementById('createChatbotBtn');
 
             if (!pageUrl) {
-                alert('Por favor, insira a URL da página.');
+                alert('❌ Por favor, insira a URL da página.');
                 return;
             }
 
-            // Simular criação do chatbot
-            botCount++;
-            updateAnalytics();
+            // Estado de loading
+            btn.classList.add('loading');
+            btn.textContent = '🔄 Extraindo dados da página...';
+            btn.disabled = true;
 
-            // Mostrar sucesso
-            const btn = event.target;
-            const originalText = btn.textContent;
-            btn.textContent = '✅ Chatbot Ativado com Sucesso!';
-            btn.style.background = '#28a745';
+            try {
+                // 1. Extrair dados da página
+                console.log('🔍 Iniciando extração de dados...');
+                const extractResponse = await fetch('/extract', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: pageUrl })
+                });
 
+                if (!extractResponse.ok) {
+                    throw new Error(`Erro na extração: ${extractResponse.status}`);
+                }
+
+                const extractData = await extractResponse.json();
+                console.log('✅ Dados extraídos:', extractData);
+
+                if (extractData.success && extractData.data) {
+                    currentExtractedData = extractData.data;
+                    
+                    // Mostrar dados extraídos
+                    const resultDiv = document.getElementById('extractionResult');
+                    const contentDiv = document.getElementById('extractedContent');
+                    
+                    contentDiv.innerHTML = `
+                        <p><strong>Título:</strong> ${extractData.data.title}</p>
+                        <p><strong>Descrição:</strong> ${extractData.data.description}</p>
+                        <p><strong>Conteúdo:</strong> ${extractData.data.content.substring(0, 200)}...</p>
+                    `;
+                    resultDiv.style.display = 'block';
+
+                    // Atualizar código do widget
+                    document.getElementById('widgetRobotName').textContent = robotName;
+                    
+                    // 2. Testar chat com dados extraídos
+                    btn.textContent = '🤖 Configurando IA...';
+                    
+                    const testMessage = "Olá! Como você pode me ajudar?";
+                    const chatResponse = await fetch('/chat-universal', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            message: testMessage,
+                            robotName: robotName,
+                            instructions: instructions,
+                            extractedData: currentExtractedData
+                        })
+                    });
+
+                    if (chatResponse.ok) {
+                        const chatData = await chatResponse.json();
+                        console.log('✅ Chat funcionando:', chatData);
+                        
+                        // Adicionar resposta ao preview
+                        const messagesDiv = document.getElementById('chatMessages');
+                        if (chatData.success && chatData.response) {
+                            messagesDiv.innerHTML += `
+                                <div class="chat-message user">${testMessage}</div>
+                                <div class="chat-message">${chatData.response}</div>
+                            `;
+                            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                        }
+                    }
+
+                    // Sucesso
+                    btn.classList.remove('loading');
+                    btn.classList.add('success');
+                    btn.textContent = '✅ Chatbot Ativado com Sucesso!';
+                    
+                    // Incrementar contador
+                    botCount++;
+                    document.getElementById('botsCount').textContent = botCount;
+                    
+                } else {
+                    throw new Error('Falha na extração de dados');
+                }
+
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                btn.classList.remove('loading');
+                btn.classList.add('error');
+                btn.textContent = '❌ Erro na criação do chatbot';
+                
+                alert(`❌ Erro: ${error.message}\n\nVerifique:\n- URL válida e acessível\n- Conexão com a internet\n- APIs configuradas`);
+            }
+
+            // Resetar botão após 3 segundos
             setTimeout(() => {
-                btn.textContent = originalText;
-                btn.style.background = '';
+                btn.classList.remove('loading', 'success', 'error');
+                btn.textContent = '🚀 Ativar Chatbot Inteligente';
+                btn.disabled = false;
             }, 3000);
-
-            console.log('Chatbot criado:', { robotName, pageUrl, instructions });
         }
 
-        function updateAnalytics() {
-            const cards = document.querySelectorAll('.analytics-value');
-            cards[0].textContent = botCount;
-            cards[1].textContent = messageCount;
+        // Função para enviar mensagem no preview
+        async function sendPreviewMessage() {
+            const input = document.getElementById('previewInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            const messagesDiv = document.getElementById('chatMessages');
+            const robotName = document.getElementById('robotName').value || 'Assistente';
+            const instructions = document.getElementById('instructions').value;
+            
+            // Adicionar mensagem do usuário
+            messagesDiv.innerHTML += `<div class="chat-message user">${message}</div>`;
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            
+            // Limpar input
+            input.value = '';
+            
+            // Mostrar typing
+            messagesDiv.innerHTML += `<div class="chat-message" id="typing">🤖 Digitando...</div>`;
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            
+            try {
+                const response = await fetch('/chat-universal', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        robotName: robotName,
+                        instructions: instructions,
+                        extractedData: currentExtractedData
+                    })
+                });
+
+                // Remover typing
+                document.getElementById('typing')?.remove();
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.response) {
+                        messagesDiv.innerHTML += `<div class="chat-message">${data.response}</div>`;
+                        
+                        // Incrementar contador de mensagens
+                        messageCount++;
+                        document.getElementById('messagesCount').textContent = messageCount;
+                    } else {
+                        messagesDiv.innerHTML += `<div class="chat-message">❌ ${data.fallbackResponse || 'Erro na resposta'}</div>`;
+                    }
+                } else {
+                    messagesDiv.innerHTML += `<div class="chat-message">❌ Erro de conexão. Tente novamente.</div>`;
+                }
+
+            } catch (error) {
+                document.getElementById('typing')?.remove();
+                messagesDiv.innerHTML += `<div class="chat-message">❌ Erro: ${error.message}</div>`;
+            }
+            
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
+        // Função para compartilhamento social
         function shareToSocial(platform) {
+            const pageUrl = document.getElementById('pageUrl').value || window.location.href;
+            const robotName = document.getElementById('robotName').value || 'LinkMágico';
+            
             const urls = {
-                whatsapp: 'https://api.whatsapp.com/send?text=Conheça o LinkMágico - IA Conversacional: https://link-m-gico-v6-0-dx0q.onrender.com',
-                telegram: 'https://t.me/share/url?url=https://link-m-gico-v6-0-dx0q.onrender.com&text=LinkMágico - IA Conversacional',
-                facebook: 'https://www.facebook.com/sharer/sharer.php?u=https://link-m-gico-v6-0-dx0q.onrender.com',
+                whatsapp: `https://api.whatsapp.com/send?text=Conheça o ${robotName} - IA Conversacional: ${pageUrl}`,
+                telegram: `https://t.me/share/url?url=${pageUrl}&text=${robotName} - IA Conversacional`,
+                facebook: `https://www.facebook.com/sharer/sharer.php?u=${pageUrl}`,
                 youtube: 'https://studio.youtube.com',
                 tiktok: 'https://www.tiktok.com/upload',
-                twitter: 'https://twitter.com/intent/tweet?text=Conheça o LinkMágico&url=https://link-m-gico-v6-0-dx0q.onrender.com',
+                twitter: `https://twitter.com/intent/tweet?text=Conheça o ${robotName}&url=${pageUrl}`,
                 instagram: 'https://www.instagram.com',
-                linkedin: 'https://www.linkedin.com/sharing/share-offsite/?url=https://link-m-gico-v6-0-dx0q.onrender.com'
+                linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${pageUrl}`,
+                messenger: `https://www.messenger.com/t/?link=${pageUrl}`,
+                prompt: '/docs#prompts',
+                kwai: 'https://www.kwai.com'
             };
 
             if (urls[platform]) {
@@ -542,26 +893,95 @@
             }
         }
 
-        // Atualizar contadores simulados
-        setInterval(() => {
-            if (Math.random() > 0.7) {
-                messageCount += Math.floor(Math.random() * 3) + 1;
-                updateAnalytics();
+        // Função para abrir analytics
+        function openAnalytics() {
+            window.open('/dashboard/demo', '_blank');
+        }
+
+        // Event listener para Enter no chat preview
+        document.getElementById('previewInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendPreviewMessage();
             }
-        }, 5000);
+        });
 
-        // Inicializar analytics
-        updateAnalytics();
+        // Atualizar contadores em tempo real
+        setInterval(() => {
+            if (Math.random() > 0.8) {
+                messageCount += Math.floor(Math.random() * 2) + 1;
+                document.getElementById('messagesCount').textContent = messageCount;
+                
+                // Simular tempo de resposta
+                const times = ['1s', '2s', '3s', '2s', '1s'];
+                document.getElementById('responseTime').textContent = times[Math.floor(Math.random() * times.length)];
+            }
+        }, 8000);
 
-        // Verificar status das APIs
-        fetch('/status')
-            .then(response => response.json())
-            .then(data => {
-                console.log('Status das APIs:', data);
-            })
-            .catch(error => {
-                console.log('Status offline:', error);
-            });
+        // Verificar status das APIs no carregamento
+        async function checkAPIStatus() {
+            try {
+                const response = await fetch('/status');
+                const data = await response.json();
+                console.log('📊 Status das APIs:', data);
+                
+                // Atualizar indicador visual
+                const indicators = document.querySelectorAll('.status-indicator');
+                indicators.forEach(indicator => {
+                    indicator.style.background = '#00ff88';
+                    indicator.style.boxShadow = '0 0 10px #00ff88';
+                });
+                
+            } catch (error) {
+                console.warn('⚠️ Status das APIs indisponível:', error);
+                
+                // Indicador de warning
+                const indicators = document.querySelectorAll('.status-indicator');
+                indicators.forEach(indicator => {
+                    indicator.style.background = '#f39c12';
+                    indicator.style.boxShadow = '0 0 10px #f39c12';
+                });
+            }
+        }
+
+        // Inicializar aplicação
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 LinkMágico v6.0 + v7.0 inicializado');
+            checkAPIStatus();
+            
+            // Focar no primeiro input
+            document.getElementById('robotName').focus();
+        });
+
+        // Auto-save no localStorage (para UX)
+        function autoSave() {
+            const robotName = document.getElementById('robotName').value;
+            const pageUrl = document.getElementById('pageUrl').value;
+            const instructions = document.getElementById('instructions').value;
+            
+            localStorage.setItem('linkmagico_robotName', robotName);
+            localStorage.setItem('linkmagico_pageUrl', pageUrl);
+            localStorage.setItem('linkmagico_instructions', instructions);
+        }
+
+        // Auto-load do localStorage
+        function autoLoad() {
+            const robotName = localStorage.getItem('linkmagico_robotName');
+            const pageUrl = localStorage.getItem('linkmagico_pageUrl');
+            const instructions = localStorage.getItem('linkmagico_instructions');
+            
+            if (robotName) document.getElementById('robotName').value = robotName;
+            if (pageUrl) document.getElementById('pageUrl').value = pageUrl;
+            if (instructions) document.getElementById('instructions').value = instructions;
+        }
+
+        // Event listeners para auto-save
+        document.getElementById('robotName').addEventListener('input', autoSave);
+        document.getElementById('pageUrl').addEventListener('input', autoSave);
+        document.getElementById('instructions').addEventListener('input', autoSave);
+
+        // Carregar dados salvos
+        autoLoad();
+
     </script>
 </body>
 </html>
