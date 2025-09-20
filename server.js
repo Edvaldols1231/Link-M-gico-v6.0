@@ -1,715 +1,368 @@
+// LinkMágico Chatbot - Consolidated server (v6.0 + v7.0 compat)
+// Cleaned and prepared for Render deployment.
+// Environment: create a .env with OPENAI_API_KEY, GROQ_API_KEY, etc. as needed.
+
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const winston = require('winston');
 const axios = require('axios');
 const cheerio = require('cheerio');
+const path = require('path');
+const fs = require('fs');
 const bodyParser = require('body-parser');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-const path = require('path');
-require('dotenv').config();
+
+// Optional dependencies - graceful fallback
+let puppeteer = null;
+try { puppeteer = require('puppeteer'); console.log('✅ Puppeteer available'); } catch (e) { /* optional */ }
+let Tesseract = null;
+try { Tesseract = require('tesseract.js'); console.log('✅ Tesseract available'); } catch (e) { /* optional */ }
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// ================================
-// CONFIGURAÇÕES DE LOGGING (v7.0)
-// ================================
-
+// Logger
 const logger = winston.createLogger({
-  level: 'info',
+  level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
     winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
     winston.format.json()
   ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: 'app.log' })
-  ]
+  transports: [ new winston.transports.Console({ format: winston.format.combine(winston.format.colorize(), winston.format.simple()) }) ]
 });
 
-// ================================
-// RATE LIMITING MELHORADO (v7.0)
-// ================================
+// Rate limiters
+const dashboardDemoLimit = rateLimit({ windowMs: 10*60*1000, max: 50, message: { error: 'Rate limit dashboard demo excedido' } });
+const widgetEmbedLimit = rateLimit({ windowMs: 5*60*1000, max: 200, message: { error: 'Rate limit widget embed excedido' } });
+const publicApiLimit = rateLimit({ windowMs: 15*60*1000, max: 100, message: { error: 'Rate limit API pública excedido' } });
 
-// Rate limit para demos (mais permissivo)
-const demoRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // 100 requests por IP
-  message: {
-    error: 'Muitas tentativas. Aguarde 15 minutos.',
-    type: 'demo_rate_limit'
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-});
-
-// Rate limit para dashboard demo
-const dashboardDemoLimit = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutos
-  max: 50,
-  message: { error: 'Rate limit dashboard demo excedido' }
-});
-
-// Rate limit para widget embed
-const widgetEmbedLimit = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 minutos
-  max: 200, // Mais permissivo para embeds
-  message: { error: 'Rate limit widget embed excedido' }
-});
-
-// Rate limit para API pública
-const publicApiLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { error: 'Rate limit API pública excedido' }
-});
-
-// Rate limit geral (proteção básica)
-const generalLimit = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minuto
-  max: 1000, // Bem alto, só para ataques
-  message: { error: 'Muitas requisições. Aguarde um momento.' }
-});
-
-// ================================
-// MIDDLEWARES DE SEGURANÇA
-// ================================
-
+// Helmet with permissive-ish CSP to allow inline JS used by demo/widget UIs
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https://api.groq.com", "https://api.openai.com", "https://openrouter.ai"]
+      connectSrc: ["'self'", "https://api.groq.com", "https://api.openai.com", "https://openrouter.ai", "https://api.openrouter.ai"]
     }
-  }
-}));
-
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.RENDER_EXTERNAL_URL, /\.render\.com$/, /localhost:\d+$/]
-    : true,
-  credentials: true
-}));
-
-app.use(morgan('combined', { stream: { write: message => logger.info(message.trim()) } }));
-app.use(bodyParser.json({ limit: '10mb' }));
-app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
-
-// Rate limiting geral
-app.use(generalLimit);
-
-// Static files
-app.use('/public', express.static(path.join(__dirname, 'public')));
-app.use('/assets', express.static(path.join(__dirname, 'assets')));
-
-// ================================
-// DADOS MOCKADOS PARA DEMOS v7.0
-// ================================
-
-const mockData = {
-  analytics: {
-    chatbotsCreated: 147,
-    messagesProcessed: 8934,
-    successRate: 96.7,
-    avgResponseTime: '1.2s',
-    activeUsers: 23,
-    totalUsers: 892,
-    conversionRate: 12.8
   },
-  chatbots: [
-    { id: 1, name: 'Assistente de Vendas', status: 'active', messages: 1245, created: '2024-01-15' },
-    { id: 2, name: 'Suporte Técnico', status: 'active', messages: 987, created: '2024-01-20' },
-    { id: 3, name: 'FAQ Automático', status: 'paused', messages: 456, created: '2024-02-01' }
-  ],
-  recentMessages: [
-    { user: 'Cliente A', message: 'Olá, preciso de ajuda', bot: 'Assistente de Vendas', timestamp: new Date().toISOString() },
-    { user: 'Cliente B', message: 'Qual o preço?', bot: 'Assistente de Vendas', timestamp: new Date().toISOString() },
-    { user: 'Cliente C', message: 'Como posso comprar?', bot: 'Suporte Técnico', timestamp: new Date().toISOString() }
-  ]
-};
+  crossOriginEmbedderPolicy: false
+}));
 
-// ================================
-// ROTA PRINCIPAL v6.0 MANTIDA COM MELHORIAS v7.0
-// ================================
+app.use(cors({ origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*', credentials: true, maxAge: 86400 }));
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+app.use(bodyParser.json({ limit: '5mb' }));
+app.use(morgan('combined'));
 
-app.get('/', (req, res) => {
-  // Servir o index.html original do v6.0, mas com melhorias de funcionalidade
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Serve public
+const publicDir = path.join(__dirname, 'public');
+if (fs.existsSync(publicDir)) app.use(express.static(publicDir, { maxAge: '1d', etag: true, lastModified: true }));
+
+// Analytics & cache
+const analytics = { totalRequests:0, chatRequests:0, extractRequests:0, errors:0, activeChats:new Set(), startTime:Date.now(), responseTimeHistory:[], successfulExtractions:0, failedExtractions:0 };
+app.use((req,res,next)=>{ const start=Date.now(); analytics.totalRequests++; res.on('finish',()=>{ const time=Date.now()-start; analytics.responseTimeHistory.push(time); if(analytics.responseTimeHistory.length>100) analytics.responseTimeHistory.shift(); if(res.statusCode>=400) analytics.errors++; }); next(); });
+
+const dataCache = new Map();
+const CACHE_TTL = 30 * 60 * 1000;
+function setCacheData(k,d){ dataCache.set(k,{data:d,timestamp:Date.now()}); }
+function getCacheData(k){ const c=dataCache.get(k); if(c && (Date.now()-c.timestamp)<CACHE_TTL) return c.data; dataCache.delete(k); return null; }
+
+// Utilities
+function normalizeText(text){ return (text||'').replace(/\s+/g,' ').trim(); }
+function uniqueLines(text){ if(!text) return ''; const seen=new Set(); return text.split('\n').map(l=>l.trim()).filter(Boolean).filter(l=>{ if(seen.has(l)) return false; seen.add(l); return true; }).join('\n'); }
+function clampSentences(text,maxSentences=2){ if(!text) return ''; const s=normalizeText(text).split(/(?<=[.!?])\s+/); return s.slice(0,maxSentences).join(' '); }
+function extractPrices(text){ if(!text) return []; const regex=/(R\\$\\s?\\d{1,3}(?:\\.\\d{3})*,\\d{2}|USD\\s*\\d+(?:[.,]\\d+)?|\\$\\s*\\d+(?:[.,]\\d+)?)/gi; const m=[]; let r; while((r=regex.exec(text))!==null){ m.push(r[0]); if(m.length>=10) break; } return Array.from(new Set(m)); }
+function extractBonuses(text){ if(!text) return []; const bonusKeywords=/(bônus|bonus|brinde|extra|grátis|template|planilha|checklist|e-book|ebook)/gi; const lines=String(text).split(/\\r?\\n/).map(l=>l.trim()).filter(Boolean); const bonuses=[]; for(const line of lines){ if(bonusKeywords.test(line) && line.length>10 && line.length<200){ bonuses.push(line); if(bonuses.length>=5) break; } } return Array.from(new Set(bonuses)); }
+
+// Content extraction helpers
+function extractCleanTextFromHTML(html){
+  try{
+    const $ = cheerio.load(html||'');
+    $('script, style, noscript, iframe, nav, footer, aside').remove();
+    const textBlocks=[];
+    const selectors=['h1','h2','h3','p','li','span','div'];
+    for(const sel of selectors){ $(sel).each((i,el)=>{ const t=normalizeText($(el).text()||''); if(t && t.length>15 && t.length<1000) textBlocks.push(t); }); }
+    const metaDesc = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '';
+    if(metaDesc && metaDesc.trim().length>20) textBlocks.unshift(normalizeText(metaDesc.trim()));
+    return [...new Set(textBlocks.map(b=>b.trim()).filter(Boolean))].join('\\n');
+  }catch(err){ logger.warn('extractCleanTextFromHTML error', err.message || err); return ''; }
+}
+
+// Page extraction (Axios + Cheerio) - basic but effective
+async function extractPageData(url){
+  const start = Date.now();
+  try{
+    if(!url) throw new Error('URL is required');
+    const cacheKey = url;
+    const cached = getCacheData(cacheKey);
+    if(cached){ logger.info('Cache hit for '+url); return cached; }
+    logger.info('Starting extraction for: '+url);
+    const extracted = { title:'', description:'', price:'', benefits:[], testimonials:[], cta:'', summary:'', cleanText:'', imagesText:[], url, extractionTime:0, method:'unknown', bonuses_detected:[], price_detected:[] };
+    let html='';
+    try{
+      const response = await axios.get(url, { headers: { 'User-Agent':'Mozilla/5.0', 'Accept-Language':'pt-BR,pt;q=0.9,en;q=0.8' }, timeout:10000, maxRedirects:3, validateStatus: s => s>=200 && s<400 });
+      html = response.data || '';
+      const finalUrl = response.request?.res?.responseUrl || url;
+      if(finalUrl && finalUrl!==url) extracted.url = finalUrl;
+      extracted.method = 'axios-cheerio';
+      logger.info('Axios extraction success length='+String(html.length));
+    }catch(e){ logger.warn('Axios extraction failed: ' + (e.message||e)); }
+
+    if(html && html.length>100){
+      try{
+        const $ = cheerio.load(html);
+        $('script, style, noscript, iframe').remove();
+        // title
+        const titleSelectors=['h1','meta[property="og:title"]','meta[name="twitter:title"]','title'];
+        for(const sel of titleSelectors){
+          const el = $(sel).first();
+          const title = (el.attr && (el.attr('content')||el.text) ? (el.attr('content') || el.text()) : el.text ? el.text() : '').toString().trim();
+          if(title && title.length>5 && title.length<200){ extracted.title = title; break; }
+        }
+        // description
+        const descSelectors=['meta[name="description"]','meta[property="og:description"]','.description','article p','main p'];
+        for(const sel of descSelectors){
+          const el = $(sel).first();
+          const desc = (el.attr && (el.attr('content')||el.text) ? (el.attr('content') || el.text()) : el.text ? el.text() : '').toString().trim();
+          if(desc && desc.length>50 && desc.length<1000){ extracted.description = desc; break; }
+        }
+        extracted.cleanText = extractCleanTextFromHTML(html);
+        const bodyText = $('body').text() || '';
+        const priceMatches = bodyText.match(/(R\\$\\s*\\d{1,3}(?:[.,]\\d{3})*(?:[.,]\\d{2})?|\\$\\s*\\d+(?:[.,]\\d+)?|USD\\s*\\d+)/gi);
+        if(priceMatches && priceMatches.length){ extracted.price = priceMatches[0]; extracted.price_detected = priceMatches.slice(0,5); }
+        const summaryText = bodyText.replace(/\\s+/g,' ').trim();
+        const sentences = summaryText.split(/[.!?]+/).map(s=>s.trim()).filter(Boolean);
+        extracted.summary = sentences.slice(0,3).join('. ').substring(0,400) + (sentences.length>3? '...' : '');
+        extracted.bonuses_detected = extractBonuses(bodyText);
+        extracted.price_detected = extractPrices(bodyText);
+        analytics.successfulExtractions++;
+        logger.info('Cheerio extraction completed for '+url);
+      }catch(e){ logger.warn('Cheerio parsing failed: '+(e.message||e)); analytics.failedExtractions++; }
+    }
+
+    try{
+      if(extracted.cleanText) extracted.cleanText = uniqueLines(extracted.cleanText);
+      if(!extracted.title && extracted.cleanText){
+        const firstLine = extracted.cleanText.split('\\n').find(l=>l && l.length>10 && l.length<150);
+        if(firstLine) extracted.title = firstLine.slice(0,150);
+      }
+      if(!extracted.summary && extracted.cleanText){
+        const sents = extracted.cleanText.split(/(?<=[.!?])\\s+/).filter(Boolean);
+        extracted.summary = sents.slice(0,3).join('. ').slice(0,400) + (sents.length>3 ? '...' : '');
+      }
+    }catch(e){ logger.warn('Final processing failed: '+(e.message||e)); }
+
+    extracted.extractionTime = Date.now() - start;
+    setCacheData(cacheKey, extracted);
+    logger.info(`Extraction completed for ${url} in ${extracted.extractionTime}ms using ${extracted.method}`);
+    return extracted;
+  }catch(err){ analytics.failedExtractions++; logger.error('Page extraction failed: '+(err.message||err)); return { title:'', description:'', price:'', benefits:[], testimonials:[], cta:'', summary:'', cleanText:'', imagesText:[], url: url||'', extractionTime: Date.now()-start, method:'failed', error: err.message || String(err), bonuses_detected: [], price_detected: [] }; }
+}
+
+// LLM Integration helpers
+async function callGroq(messages, temperature=0.4, maxTokens=300){
+  if(!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY missing');
+  const payload = { model: process.env.GROQ_MODEL || 'llama-3.1-70b-versatile', messages, temperature, max_tokens: maxTokens };
+  const url = process.env.GROQ_API_BASE || 'https://api.groq.com/openai/v1/chat/completions';
+  const headers = { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' };
+  const resp = await axios.post(url, payload, { headers, timeout:15000 });
+  if(!(resp && resp.status>=200 && resp.status<300)) throw new Error('GROQ API failed status='+resp?.status);
+  if(resp.data?.choices?.[0]?.message?.content) return resp.data.choices[0].message.content;
+  throw new Error('Invalid GROQ response');
+}
+
+async function callOpenAI(messages, temperature=0.2, maxTokens=300){
+  if(!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY missing');
+  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const url = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1/chat/completions';
+  const payload = { model, messages, temperature, max_tokens: maxTokens };
+  const headers = { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' };
+  const resp = await axios.post(url, payload, { headers, timeout:15000 });
+  if(!(resp && resp.status>=200 && resp.status<300)) throw new Error('OpenAI API failed status='+resp?.status);
+  if(resp.data?.choices?.[0]?.message?.content) return resp.data.choices[0].message.content;
+  throw new Error('Invalid OpenAI response');
+}
+
+// Local response generator and orchestration
+const NOT_FOUND_MSG = "Não encontrei essa informação específica na página. Posso te ajudar com outras dúvidas ou enviar o link direto?";
+
+function shouldActivateSalesMode(instructions=''){ if(!instructions) return false; const text=String(instructions).toLowerCase(); return /sales_mode:on|consultivo|vendas|venda|cta|sempre.*link|finalize.*cta/i.test(text); }
+
+function generateLocalResponse(userMessage, pageData={}, instructions=''){
+  const q = String(userMessage||'').toLowerCase();
+  const salesMode = shouldActivateSalesMode(instructions);
+  if(/preço|valor|quanto custa/.test(q)){
+    if(pageData.price) return salesMode ? `O preço é ${pageData.price}. Quer garantir sua vaga agora?` : `Preço: ${pageData.price}`;
+    return 'Preço não informado na página.';
+  }
+  if(/como funciona|funcionamento/.test(q)){
+    const summary = pageData.summary || pageData.description;
+    if(summary){ const shortSummary = clampSentences(summary,2); return salesMode ? `${shortSummary} Quer saber mais detalhes?` : shortSummary; }
+  }
+  if(/bônus|bonus/.test(q)){
+    if(pageData.bonuses_detected && pageData.bonuses_detected.length>0){ const bonuses = pageData.bonuses_detected.slice(0,2).join(', '); return salesMode ? `Inclui: ${bonuses}. Quer garantir todos os bônus?` : `Bônus: ${bonuses}`; }
+    return 'Informações sobre bônus não encontradas.';
+  }
+  if(pageData.summary) { const summary = clampSentences(pageData.summary,2); return salesMode ? `${summary} Posso te ajudar com mais alguma dúvida?` : summary; }
+  return NOT_FOUND_MSG;
+}
+
+async function generateAIResponse(userMessage, pageData={}, conversation=[], instructions=''){
+  const start = Date.now();
+  try{
+    if(/\b(link|página|site|comprar|inscrever)\b/i.test(userMessage) && pageData && pageData.url){
+      const url = pageData.url;
+      const salesMode = shouldActivateSalesMode(instructions);
+      return salesMode ? `Aqui está o link oficial: ${url}\n\nQuer que eu te ajude com mais alguma informação sobre o produto?` : `Aqui está o link: ${url}`;
+    }
+    const systemLines = [
+      "Você é um assistente especializado em vendas online.",
+      "Responda de forma clara, útil e concisa.",
+      "Use apenas informações da página extraída.",
+      "Nunca invente dados que não estejam disponíveis.",
+      "Máximo 2-3 frases por resposta."
+    ];
+    if(shouldActivateSalesMode(instructions)){ systemLines.push("Tom consultivo e entusiasmado.","Termine com pergunta que leve à compra."); }
+    const systemPrompt = systemLines.join('\\n');
+    const contextLines = [];
+    if(pageData.title) contextLines.push(`Produto: ${pageData.title}`);
+    if(pageData.bonuses_detected && pageData.bonuses_detected.length>0) contextLines.push(`Bônus: ${pageData.bonuses_detected.slice(0,3).join(', ')}`);
+    const contentExcerpt = (pageData.summary || pageData.cleanText || '').slice(0,1000);
+    if(contentExcerpt) contextLines.push(`Informações: ${contentExcerpt}`);
+    const pageContext = contextLines.join('\\n');
+    const userPrompt = `${instructions ? `Instruções: ${instructions}\\n\\n` : ''}Contexto:\\n${pageContext}\\n\\nPergunta: ${userMessage}\\n\\nResponda de forma concisa usando apenas as informações fornecidas.`;
+    const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }];
+    let response = null; let usedProvider = 'local';
+    if(process.env.GROQ_API_KEY){ try{ response = await callGroq(messages,0.4,250); usedProvider='groq'; logger.info('GROQ call ok'); }catch(e){ logger.warn('GROQ failed: '+(e.message||e)); } }
+    if(!response && process.env.OPENAI_API_KEY){ try{ response = await callOpenAI(messages,0.2,250); usedProvider='openai'; logger.info('OpenAI call ok'); }catch(e){ logger.warn('OpenAI failed: '+(e.message||e)); } }
+    if(!response || !String(response).trim()){ response = generateLocalResponse(userMessage, pageData, instructions); usedProvider = 'local'; }
+    const finalResponse = clampSentences(String(response).trim(), 3);
+    logger.info(`AI response generated in ${Date.now()-start}ms using ${usedProvider}`);
+    return finalResponse;
+  }catch(err){ logger.error('AI generation failed: '+(err.message||err)); return NOT_FOUND_MSG; }
+}
+
+// Mock data for demos
+const mockData = { analytics: { chatbotsCreated:147, messagesProcessed:8934, successRate:96.7, avgResponseTime:'1.2s', activeUsers:23, totalUsers:892, conversionRate:12.8 } };
+
+// Routes
+app.get('/health', (req,res)=>{
+  const uptime = process.uptime();
+  const avgResponseTime = analytics.responseTimeHistory.length>0 ? Math.round(analytics.responseTimeHistory.reduce((a,b)=>a+b,0)/analytics.responseTimeHistory.length) : 0;
+  res.json({ status:'healthy', uptime:Math.floor(uptime), timestamp:new Date().toISOString(), version:'6.0.0 + v7.0', analytics:{ totalRequests:analytics.totalRequests, chatRequests:analytics.chatRequests, extractRequests:analytics.extractRequests, errors:analytics.errors, activeChats:analytics.activeChats.size, avgResponseTime, successfulExtractions:analytics.successfulExtractions, failedExtractions:analytics.failedExtractions, cacheSize:dataCache.size }, services:{ groq:!!process.env.GROQ_API_KEY, openai:!!process.env.OPENAI_API_KEY, puppeteer:!!puppeteer, tesseract:!!Tesseract } });
 });
 
-// ================================
-// NOVAS ROTAS v7.0 ADICIONADAS
-// ================================
-
-// Dashboard Demo Público (NOVO v7.0)
-app.get('/dashboard/demo', dashboardDemoLimit, (req, res) => {
-  logger.info('Dashboard demo accessed', { ip: req.ip, userAgent: req.get('User-Agent') });
-  
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Dashboard Demo - Link Mágico v7.0</title>
-        <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f7fa; }
-            .demo-banner { background: linear-gradient(45deg, #ff6b6b, #feca57); color: white; padding: 1rem; text-align: center; font-weight: bold; }
-            .back-link { color: white; text-decoration: none; margin-left: 1rem; }
-            .sidebar { position: fixed; top: 64px; left: 0; width: 250px; height: calc(100vh - 64px); background: #2c3e50; color: white; padding: 1rem; overflow-y: auto; }
-            .main-content { margin-left: 250px; margin-top: 64px; padding: 2rem; }
-            .nav-item { padding: 0.8rem 1rem; margin: 0.5rem 0; border-radius: 8px; cursor: pointer; transition: background 0.3s; }
-            .nav-item:hover { background: rgba(255,255,255,0.1); }
-            .nav-item.active { background: #3498db; }
-            .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
-            .stat-card { background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-            .stat-value { font-size: 2.5rem; font-weight: bold; color: #2c3e50; margin-bottom: 0.5rem; }
-            .stat-label { color: #7f8c8d; font-size: 0.9rem; text-transform: uppercase; }
-            .chart-container { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 2rem; }
-            @media (max-width: 768px) {
-                .sidebar { transform: translateX(-100%); }
-                .main-content { margin-left: 0; margin-top: 64px; }
-                .stats-grid { grid-template-columns: 1fr; }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="demo-banner">
-            🔴 DEMO PÚBLICO - Dashboard Analytics
-            <a href="/" class="back-link">← Voltar ao Link Mágico v6.0</a>
-        </div>
-        
-        <div class="sidebar">
-            <h3 style="margin-bottom: 1rem;">📊 Analytics</h3>
-            <div class="nav-item active">📈 Dashboard</div>
-            <div class="nav-item">🤖 Chatbots</div>
-            <div class="nav-item">💬 Conversas</div>
-            <div class="nav-item">📊 Relatórios</div>
-            <div class="nav-item">⚙️ Configurações</div>
-        </div>
-        
-        <div class="main-content">
-            <h2 style="margin-bottom: 2rem;">Dashboard Analytics - Tempo Real</h2>
-            
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value" id="chatbots-count">${mockData.analytics.chatbotsCreated}</div>
-                    <div class="stat-label">Chatbots Criados</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="messages-count">${mockData.analytics.messagesProcessed}</div>
-                    <div class="stat-label">Mensagens Processadas</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="success-rate">${mockData.analytics.successRate}%</div>
-                    <div class="stat-label">Taxa de Sucesso</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="response-time">${mockData.analytics.avgResponseTime}</div>
-                    <div class="stat-label">Tempo de Resposta</div>
-                </div>
-            </div>
-            
-            <div class="chart-container">
-                <h3>📈 Performance em Tempo Real</h3>
-                <p>Chatbots ativos processando mensagens continuamente...</p>
-                <div style="height: 200px; background: linear-gradient(45deg, #667eea, #764ba2); margin-top: 1rem; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
-                    Gráfico de Performance - Demo
-                </div>
-            </div>
-        </div>
-        
-        <script>
-            // Simulação de dados em tempo real
-            setInterval(() => {
-                const messagesEl = document.getElementById('messages-count');
-                if (Math.random() > 0.7) {
-                    const currentMessages = parseInt(messagesEl.textContent);
-                    messagesEl.textContent = currentMessages + Math.floor(Math.random() * 3) + 1;
-                    messagesEl.style.color = '#27ae60';
-                    setTimeout(() => messagesEl.style.color = '#2c3e50', 1000);
-                }
-            }, 3000);
-        </script>
-    </body>
-    </html>
-  `);
+app.get('/status', (req,res)=>{
+  res.json({ status:'online', version:'6.0 + v7.0 integrada', uptime:process.uptime(), memory:process.memoryUsage(), apis:{ groq:!!process.env.GROQ_API_KEY, openai:!!process.env.OPENAI_API_KEY, openrouter:!!process.env.OPENROUTER_API_KEY }, newFeatures:{ dashboard:'/dashboard/demo', widget:'/widget/demo', docs:'/docs' }, timestamp:new Date().toISOString() });
 });
 
-// Widget Demo Público (NOVO v7.0)
-app.get('/widget/demo', widgetEmbedLimit, (req, res) => {
+app.get('/analytics', (req,res)=>{
+  const uptimeMs = Date.now()-analytics.startTime;
+  const avgResponseTime = analytics.responseTimeHistory.length>0 ? Math.round(analytics.responseTimeHistory.reduce((a,b)=>a+b,0)/analytics.responseTimeHistory.length) : 0;
+  res.json({ overview:{ totalRequests:analytics.totalRequests, chatRequests:analytics.chatRequests, extractRequests:analytics.extractRequests, errorCount:analytics.errors, errorRate: analytics.totalRequests>0 ? Math.round((analytics.errors/analytics.totalRequests)*100)+'%' : '0%', activeChats:analytics.activeChats.size, uptime:Math.floor(uptimeMs/1000), avgResponseTime, successRate: analytics.extractRequests>0 ? Math.round((analytics.successfulExtractions/analytics.extractRequests)*100)+'%' : '100%' }, performance:{ responseTimeHistory: analytics.responseTimeHistory.slice(-20), cacheHits: dataCache.size, memoryUsage: process.memoryUsage() } });
+});
+
+// POST /extract
+app.post('/extract', async (req,res)=>{
+  analytics.extractRequests++;
+  try{
+    const { url, instructions } = req.body || {};
+    if(!url) return res.status(400).json({ success:false, error:'URL é obrigatório' });
+    try{ new URL(url); } catch(e){ return res.status(400).json({ success:false, error:'URL inválido' }); }
+    logger.info('Starting extraction for URL: '+url);
+    const extracted = await extractPageData(url);
+    if(instructions) extracted.custom_instructions = instructions;
+    return res.json({ success:true, data:extracted });
+  }catch(err){ analytics.errors++; logger.error('Extract endpoint error: '+(err.message||err)); return res.status(500).json({ success:false, error:'Erro interno ao extrair página' }); }
+});
+
+// POST /chat-universal
+app.post('/chat-universal', async (req,res)=>{
+  analytics.chatRequests++;
+  try{
+    const { message, pageData, url, conversationId, instructions = '', robotName, extractedData } = req.body || {};
+    if(!message) return res.status(400).json({ success:false, error:'Mensagem é obrigatória' });
+    if(conversationId){ analytics.activeChats.add(conversationId); setTimeout(()=>analytics.activeChats.delete(conversationId), 30*60*1000); }
+    let processedPageData = pageData || extractedData;
+    if(!processedPageData && url) processedPageData = await extractPageData(url);
+    const aiResponse = await generateAIResponse(message, processedPageData || {}, [], instructions);
+    let finalResponse = aiResponse;
+    if(processedPageData?.url && !String(finalResponse).includes(processedPageData.url)) finalResponse = `${finalResponse}\n\n${processedPageData.url}`;
+    return res.json({ success:true, response: finalResponse, bonuses_detected: processedPageData?.bonuses_detected || [], robotName: robotName || 'Assistente Virtual', timestamp: new Date().toISOString(), metadata: { hasPageData: !!processedPageData, contentLength: processedPageData?.cleanText?.length || 0, method: processedPageData?.method || 'none' } });
+  }catch(err){ analytics.errors++; logger.error('Chat endpoint error: '+(err.message||err)); return res.status(500).json({ success:false, error:'Erro interno ao gerar resposta', fallbackResponse:'Desculpe, estou com dificuldades técnicas no momento. Pode tentar novamente em alguns instantes?' }); }
+});
+
+// Dashboard demo
+app.get('/dashboard/demo', dashboardDemoLimit, (req,res)=>{
+  logger.info('Dashboard demo accessed', { ip: req.ip });
+  res.send(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard Demo</title><style>*{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f5f7fa;margin:0} .banner{background:linear-gradient(45deg,#ff6b6b,#feca57);color:#fff;padding:1rem;text-align:center} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;padding:1rem} .card{background:#fff;padding:1rem;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.06)}</style></head><body><div class="banner">🔴 DEMO PÚBLICO - Dashboard Analytics</div><div class="grid"><div class="card"><h3>${mockData.analytics.chatbotsCreated}</h3><p>Chatbots Criados</p></div><div class="card"><h3>${mockData.analytics.messagesProcessed}</h3><p>Mensagens Processadas</p></div><div class="card"><h3>${mockData.analytics.successRate}%</h3><p>Taxa de Sucesso</p></div><div class="card"><h3>${mockData.analytics.avgResponseTime}</h3><p>Tempo Médio</p></div></div></body></html>`);
+});
+
+// Widget demo
+app.get('/widget/demo', widgetEmbedLimit, (req,res)=>{
   logger.info('Widget demo accessed', { ip: req.ip });
-  
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Widget Demo - Link Mágico v7.0</title>
-        <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: linear-gradient(135deg, #74b9ff, #0984e3); min-height: 100vh; color: white; }
-            .demo-banner { background: rgba(0,0,0,0.8); padding: 1rem; text-align: center; font-weight: bold; }
-            .back-link { color: white; text-decoration: none; margin-left: 1rem; }
-            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-            .header { text-align: center; margin-bottom: 3rem; }
-            .demo-section { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 15px; padding: 2rem; margin-bottom: 2rem; }
-            .code-block { background: #2d3748; color: #e2e8f0; padding: 1.5rem; border-radius: 8px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 0.9rem; margin: 1rem 0; }
-        </style>
-    </head>
-    <body>
-        <div class="demo-banner">
-            🔴 WIDGET DEMO - Chat Embedável
-            <a href="/" class="back-link">← Voltar ao Link Mágico v6.0</a>
-        </div>
-        
-        <div class="container">
-            <div class="header">
-                <h1>🔧 Widget Embedável</h1>
-                <p>Chat inteligente para incorporar em qualquer site</p>
-            </div>
-            
-            <div class="demo-section">
-                <h3>💻 Código de Integração</h3>
-                <p>Cole este código antes do fechamento da tag &lt;/body&gt; do seu site:</p>
-                
-                <div class="code-block">
-&lt;script&gt;
-(function() {
-  var config = {
-    robotName: 'Assistente de Vendas',
-    instructions: 'Seja consultivo e termine com CTA',
-    primaryColor: '#667eea',
-    position: 'bottom-right',
-    apiBase: '${req.protocol}://${req.get('host')}'
-  };
-  
-  var script = document.createElement('script');
-  script.src = '${req.protocol}://${req.get('host')}/widget.js';
-  script.onload = function() {
-    window.LinkMagicoWidget.init(config);
-  };
-  document.head.appendChild(script);
-})();
-&lt;/script&gt;
-                </div>
-                
-                <h3>✨ Funcionalidades</h3>
-                <ul style="margin: 1rem 0; padding-left: 2rem;">
-                    <li>✅ Chat com IA (GROQ/OpenAI/OpenRouter)</li>
-                    <li>✅ Responsivo para mobile</li>
-                    <li>✅ Carregamento rápido (&lt;2s)</li>
-                    <li>✅ Customização completa</li>
-                    <li>✅ Analytics integradas</li>
-                </ul>
-            </div>
-            
-            <div style="text-align: center; margin-top: 3rem;">
-                <a href="/docs" style="display: inline-block; background: rgba(255,255,255,0.2); color: white; padding: 1rem 2rem; text-decoration: none; border-radius: 25px; border: 1px solid rgba(255,255,255,0.3);">
-                    📖 Ver Documentação Completa
-                </a>
-            </div>
-        </div>
-    </body>
-    </html>
-  `);
+  res.send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Widget Demo</title></head><body><h1>Widget Demo - Link Mágico</h1><p>Use /widget.js to embed</p></body></html>`);
 });
 
-// API Pública para demos (NOVO v7.0)
-app.get('/api/public/status', publicApiLimit, (req, res) => {
-  res.json({
-    status: 'operational',
-    version: '7.0.0 (integrada)',
-    features: {
-      groq: !!process.env.GROQ_API_KEY,
-      openai: !!process.env.OPENAI_API_KEY,
-      openrouter: !!process.env.OPENROUTER_API_KEY,
-      rateLimit: true,
-      demos: true,
-      originalV6: true
-    },
-    analytics: mockData.analytics,
-    timestamp: new Date().toISOString()
-  });
+// Docs
+app.get('/docs', (req,res)=>{
+  res.send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Docs</title></head><body><h1>Documentação Link Mágico</h1><p>Ver endpoints: /chat-universal, /extract, /dashboard/demo, /widget/demo</p></body></html>`);
 });
 
-// Documentação (NOVO v7.0)
-app.get('/docs', (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Documentação - Link Mágico v7.0</title>
-        <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; margin: 0; background: #f8f9fa; }
-            .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-            .header { text-align: center; background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 3rem 2rem; margin: -2rem -2rem 2rem -2rem; }
-            .back-link { color: white; text-decoration: none; }
-            .endpoint { background: white; border-radius: 10px; padding: 1.5rem; margin: 1rem 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-            .method { display: inline-block; padding: 0.3rem 0.8rem; border-radius: 15px; font-weight: bold; font-size: 0.8rem; margin-right: 1rem; }
-            .method.get { background: #d4edda; color: #155724; }
-            .method.post { background: #cce5ff; color: #004085; }
-            .code { background: #2d3748; color: #e2e8f0; padding: 1rem; border-radius: 5px; overflow-x: auto; font-family: 'Courier New', monospace; margin: 0.5rem 0; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>📖 Documentação Link Mágico v7.0</h1>
-                <p>Integração completa - v6.0 + recursos v7.0</p>
-                <a href="/" class="back-link">← Voltar ao Link Mágico</a>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method post">POST</span>/chat-universal</h3>
-                <p><strong>Funcionalidade principal:</strong> Chat com IA usando GROQ (principal), OpenAI ou OpenRouter como fallback.</p>
-                
-                <h4>Exemplo de uso:</h4>
-                <div class="code">
-curl -X POST ${req.protocol}://${req.get('host')}/chat-universal \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "message": "Olá, preciso de ajuda",
-    "robotName": "Assistente de Vendas",
-    "instructions": "Seja consultivo e termine com CTA"
-  }'
-                </div>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span>/dashboard/demo</h3>
-                <p><strong>NOVO:</strong> Dashboard público com analytics em tempo real (dados demo).</p>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span>/widget/demo</h3>
-                <p><strong>NOVO:</strong> Demonstração do widget embedável.</p>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span>/api/public/status</h3>
-                <p><strong>NOVO:</strong> Status da API com informações das funcionalidades v7.0.</p>
-            </div>
-        </div>
-    </body>
-    </html>
-  `);
+// Widget JS (client side embed)
+app.get('/widget.js', (req,res)=>{
+  res.set('Content-Type','application/javascript');
+  res.send(`(function(){ if(window.LinkMagicoWidget) return; window.LinkMagicoWidget = { init: function(cfg){ this.cfg = Object.assign({apiBase:window.location.origin,robotName:'Assistente IA',primaryColor:'#667eea',instructions:''}, cfg||{}); if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', this._create.bind(this)); } else this._create(); }, _create:function(){ const c=document.createElement('div'); c.id='linkmagico-widget'; c.innerHTML='<div style="position:fixed;right:20px;bottom:20px;z-index:999999"><button id=\"lm-btn\" style=\"width:60px;height:60px;border-radius:50%;background:'+this.cfg.primaryColor+';color:#fff\">💬</button></div>'; document.body.appendChild(c); document.getElementById('lm-btn').addEventListener('click', ()=>{ alert(\"Widget ativo - integracao com /chat-universal\") }); } }; })();`);
 });
 
-// ================================
-// ROTAS ORIGINAIS v6.0 MANTIDAS (INTACTAS)
-// ================================
+// Chatbot UI generator
+function generateChatbotHTML(pageData = {}, robotName = 'Assistente IA', customInstructions = ''){
+  const safeRobot = String(robotName||'Assistente IA').replace(/"/g,'\\"');
+  const safeInst = String(customInstructions||'').replace(/"/g,'\\"');
+  const escapedPage = JSON.stringify(pageData || {});
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LinkMágico - ${safeRobot}</title><style>*{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;padding:20px} .chat{max-width:700px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;height:80vh} .messages{flex:1;padding:16px;overflow:auto} .input{display:flex;padding:12px;border-top:1px solid #eee} input{flex:1;padding:10px;border-radius:20px;border:1px solid #ddd} button{margin-left:8px;padding:10px 14px;border-radius:8px;background:#667eea;color:#fff;border:0}</style></head><body><div class="chat"><div style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:16px"><h2>${safeRobot}</h2><p>Assistente Inteligente</p></div><div class="messages" id="messages"><div><strong>${safeRobot}:</strong> Olá! Como posso ajudar?</div></div><div class="input"><input id="msg" placeholder="Digite sua pergunta"><button id="send">Enviar</button></div></div><script>const pageData=${escapedPage};document.getElementById('send').onclick=async function(){ const m=document.getElementById('msg').value.trim(); if(!m) return; const cont=document.getElementById('messages'); cont.innerHTML += '<div style=\"text-align:right\"><strong>Você:</strong> '+m+'</div>'; document.getElementById('msg').value=''; try{ const r=await fetch('/chat-universal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:m,pageData:pageData,robotName:'${safeRobot}',instructions:'${safeInst}',conversationId:'chat_'+Date.now()})}); const j=await r.json(); if(j.success){ cont.innerHTML += '<div><strong>${safeRobot}:</strong> '+(j.response||'Sem resposta')+'</div>'; } else { cont.innerHTML += '<div><strong>${safeRobot}:</strong> Erro ao gerar resposta</div>'; } }catch(e){ cont.innerHTML += '<div><strong>${safeRobot}:</strong> Erro de conexão</div>'; } }</script></body></html>`;
+}
 
-// Rota original para extração (mantida intacta)
-app.post('/extract', async (req, res) => {
-  try {
-    logger.info('Extract request received', { url: req.body.url });
-    
-    const { url } = req.body;
-    if (!url) {
-      return res.status(400).json({ error: 'URL é obrigatória' });
-    }
-
-    const response = await axios.get(url, { timeout: 15000 });
-    const $ = cheerio.load(response.data);
-    
-    // Remover scripts e elementos desnecessários
-    $('script, style, nav, footer, .ads, .advertisement').remove();
-    
-    const extractedData = {
-      title: $('title').text() || $('h1').first().text(),
-      description: $('meta[name="description"]').attr('content') || 
-                  $('meta[property="og:description"]').attr('content') || 
-                  $('p').first().text().substring(0, 200),
-      content: $('body').text().replace(/\s+/g, ' ').trim().substring(0, 8000),
-      url: url
-    };
-
-    logger.info('Extraction successful', { url });
-    res.json({ success: true, data: extractedData });
-    
-  } catch (error) {
-    logger.error('Extraction failed', { error: error.message, url: req.body.url });
-    res.status(500).json({ 
-      error: 'Erro na extração', 
-      details: process.env.NODE_ENV === 'development' ? error.message : 'Erro interno'
-    });
-  }
+// Chatbot endpoint
+app.get('/chatbot', async (req,res)=>{
+  try{
+    const robotName = req.query.name || 'Assistente IA';
+    const url = req.query.url || '';
+    const instructions = req.query.instructions || '';
+    let pageData = {};
+    if(url){ try{ pageData = await extractPageData(url); }catch(e){ logger.warn('Failed to extract for chatbot UI: '+(e.message||e)); } }
+    const html = generateChatbotHTML(pageData, robotName, instructions);
+    res.set('Content-Type','text/html; charset=utf-8').send(html);
+  }catch(err){ logger.error('Chatbot HTML generation error: '+(err.message||err)); res.status(500).send('<h3>Erro ao gerar interface do chatbot</h3>'); }
 });
 
-// Rota original de chat universal (mantida intacta com melhorias)
-app.post('/chat-universal', publicApiLimit, async (req, res) => {
-  try {
-    const { message, robotName, instructions, extractedData } = req.body;
-    
-    if (!message) {
-      return res.status(400).json({ error: 'Mensagem é obrigatória' });
-    }
-
-    logger.info('Chat request received', { 
-      robotName, 
-      messageLength: message.length,
-      hasInstructions: !!instructions 
-    });
-
-    let response;
-    
-    // GROQ API (Principal)
-    if (process.env.GROQ_API_KEY) {
-      try {
-        const groqResponse = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-          model: "mixtral-8x7b-32768",
-          messages: [
-            {
-              role: "system",
-              content: `Você é ${robotName || 'um assistente virtual'}. ${instructions || 'Seja útil e prestativo.'}
-              
-              ${extractedData ? `Informações da página:
-              Título: ${extractedData.title}
-              Descrição: ${extractedData.description}
-              Conteúdo: ${extractedData.content?.substring(0, 2000)}` : ''}
-              
-              Responda de forma natural, útil e engajadora. Mantenha o foco na venda/conversão quando apropriado.`
-            },
-            { role: "user", content: message }
-          ],
-          temperature: 0.7,
-          max_tokens: 500
-        }, {
-          headers: {
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 10000
-        });
-
-        response = groqResponse.data.choices[0].message.content;
-        logger.info('GROQ API response successful');
-        
-      } catch (groqError) {
-        logger.warn('GROQ API failed, trying fallback', { error: groqError.message });
-        throw groqError;
-      }
-    }
-
-    // Fallback para OpenAI API
-    if (!response && process.env.OPENAI_API_KEY) {
-      try {
-        const openaiResponse = await axios.post('https://api.openai.com/v1/chat/completions', {
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system", 
-              content: `Você é ${robotName || 'um assistente virtual'}. ${instructions || 'Seja útil e prestativo.'}`
-            },
-            { role: "user", content: message }
-          ],
-          temperature: 0.7,
-          max_tokens: 500
-        }, {
-          headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 10000
-        });
-
-        response = openaiResponse.data.choices[0].message.content;
-        logger.info('OpenAI API response successful (fallback)');
-        
-      } catch (openaiError) {
-        logger.warn('OpenAI API failed, trying next fallback', { error: openaiError.message });
-      }
-    }
-
-    // Fallback para OpenRouter API
-    if (!response && process.env.OPENROUTER_API_KEY) {
-      try {
-        const openrouterResponse = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-          model: "microsoft/wizardlm-2-8x22b",
-          messages: [
-            {
-              role: "system", 
-              content: `Você é ${robotName || 'um assistente virtual'}. ${instructions || 'Seja útil e prestativo.'}`
-            },
-            { role: "user", content: message }
-          ]
-        }, {
-          headers: {
-            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'
-          },
-          timeout: 10000
-        });
-
-        response = openrouterResponse.data.choices[0].message.content;
-        logger.info('OpenRouter API response successful (fallback)');
-        
-      } catch (openrouterError) {
-        logger.warn('OpenRouter API failed, using native fallback', { error: openrouterError.message });
-      }
-    }
-
-    // Fallback nativo (lógica simples)
-    if (!response) {
-      logger.info('Using native fallback response');
-      
-      const nativeResponses = [
-        `Olá! Como ${robotName || 'assistente'}, posso ajudar você com informações sobre nossos produtos e serviços. Em que posso ser útil?`,
-        `Entendo sua pergunta. Como especialista, posso dizer que temos soluções personalizadas para suas necessidades. Gostaria de saber mais detalhes?`,
-        `Excelente pergunta! Nossa experiência mostra que muitos clientes têm essa mesma dúvida. Posso explicar como funcionamos e como podemos ajudar você.`,
-        `Perfeito! Essa é uma questão importante. Com base na sua mensagem, acredito que posso oferecer informações valiosas. O que especificamente você gostaria de saber?`
-      ];
-      
-      response = nativeResponses[Math.floor(Math.random() * nativeResponses.length)];
-    }
-
-    res.json({
-      success: true,
-      response: response,
-      robotName: robotName || 'Assistente Virtual',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    logger.error('Chat request failed', { error: error.message });
-    res.status(500).json({
-      error: 'Erro no processamento da mensagem',
-      fallbackResponse: 'Desculpe, estou com dificuldades técnicas no momento. Pode tentar novamente em alguns instantes?'
-    });
-  }
+// Root fallback
+app.get('/', (req,res)=>{
+  const indexPath = path.join(__dirname,'public','index.html');
+  if(fs.existsSync(indexPath)) return res.sendFile(indexPath);
+  res.send(`<html><body style="font-family:Arial,sans-serif;text-align:center;padding:40px"><h1>🤖 LinkMágico Chatbot v6.0 + v7.0</h1><p><a href="/health">Status</a> • <a href="/analytics">Analytics</a> • <a href="/widget.js">Widget</a> • <a href="/chatbot">Chat Demo</a></p><p><a href="/dashboard/demo">Dashboard Demo</a> • <a href="/widget/demo">Widget Demo</a> • <a href="/docs">Docs</a></p></body></html>`);
 });
 
-// Status e health check (mantido e melhorado)
-app.get('/status', (req, res) => {
-  res.json({
-    status: 'online',
-    version: '6.0 + v7.0 integrada',
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    apis: {
-      groq: !!process.env.GROQ_API_KEY,
-      openai: !!process.env.OPENAI_API_KEY,
-      openrouter: !!process.env.OPENROUTER_API_KEY
-    },
-    newFeatures: {
-      dashboard: '/dashboard/demo',
-      widget: '/widget/demo',
-      api: '/api/public/status',
-      docs: '/docs'
-    },
-    rateLimit: 'active',
-    timestamp: new Date().toISOString()
-  });
-});
+// Error handling & 404
+app.use((err,req,res,next)=>{ analytics.errors++; logger.error('Unhandled error:', err); res.status(err.status || 500).json({ success:false, error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err.message || String(err)) }); });
+app.use((req,res)=> res.status(404).json({ success:false, error:'Endpoint not found' }));
 
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'healthy', 
-    version: 'v6.0 + v7.0',
-    timestamp: new Date().toISOString() 
-  });
-});
+// Graceful shutdown
+process.on('SIGTERM', ()=>{ logger.info('SIGTERM received, shutting down'); process.exit(0); });
+process.on('SIGINT', ()=>{ logger.info('SIGINT received, shutting down'); process.exit(0); });
 
-// Middleware para servir arquivos estáticos originais (mantido)
-app.use(express.static('public'));
-
-// ================================
-// ROTAS ORIGINAIS PRESERVADAS
-// ================================
-
-// Chat.html original (se existir)
-app.get('/chat.html', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'chat.html'));
-});
-
-// Analytics original (se existir)
-app.get('/analytics', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'analytics.html'));
-});
-
-// ================================
-// ERROR HANDLERS
-// ================================
-
-app.use((req, res, next) => {
-  logger.warn('Route not found', { path: req.path, method: req.method });
-  res.status(404).json({ 
-    error: 'Rota não encontrada',
-    availableRoutes: {
-      original: ['/', '/chat.html', '/analytics'],
-      newDemos: ['/dashboard/demo', '/widget/demo', '/docs'],
-      api: ['/chat-universal', '/extract', '/api/public/status'],
-      monitoring: ['/status', '/health']
-    }
-  });
-});
-
-app.use((err, req, res, next) => {
-  logger.error('Server error', { error: err.message, stack: err.stack });
-  
-  if (err.status === 429) {
-    return res.status(429).json({
-      error: 'Rate limit excedido',
-      message: 'Muitas tentativas. Aguarde e tente novamente.',
-      retryAfter: err.retryAfter || 60
-    });
-  }
-  
-  res.status(err.status || 500).json({
-    error: 'Erro interno do servidor',
-    message: process.env.NODE_ENV === 'production' 
-      ? 'Ocorreu um erro inesperado' 
-      : err.message
-  });
-});
-
-// ================================
-// INICIALIZAÇÃO DO SERVIDOR
-// ================================
-
-app.listen(PORT, () => {
-  logger.info('Server started', { port: PORT, environment: process.env.NODE_ENV });
-  
-  console.log(`
-🚀 Link Mágico v6.0 + v7.0 INTEGRADO!
-📍 Porta: ${PORT}
-🌐 Ambiente: ${process.env.NODE_ENV || 'development'}
-
-📡 APIs Configuradas:
-${process.env.GROQ_API_KEY ? '✅ GROQ API (Principal)' : '❌ GROQ API'}
-${process.env.OPENAI_API_KEY ? '✅ OpenAI API (Fallback)' : '❌ OpenAI API'} 
-${process.env.OPENROUTER_API_KEY ? '✅ OpenRouter API (Fallback)' : '❌ OpenRouter API'}
-
-📋 FUNCIONALIDADES ORIGINAIS v6.0:
-👉 Interface Original: http://localhost:${PORT}/
-👉 Chat Universal: POST /chat-universal
-👉 Extração: POST /extract
-👉 Analytics: http://localhost:${PORT}/analytics (se existir)
-
-🆕 NOVOS RECURSOS v7.0 INTEGRADOS:
-👉 Dashboard Demo: http://localhost:${PORT}/dashboard/demo
-👉 Widget Demo: http://localhost:${PORT}/widget/demo
-👉 API Status: http://localhost:${PORT}/api/public/status
-👉 Documentação: http://localhost:${PORT}/docs
-
-✅ Rate limiting ativo
-✅ Logging estruturado
-✅ APIs com fallback automático
-✅ Demos públicos integrados
-✅ Funcionalidades originais preservadas
-✅ TUDO EM UM SÓ LUGAR!
-  `);
+// Start server
+const PORT = parseInt(process.env.PORT || '3000', 10);
+app.listen(PORT, '0.0.0.0', ()=>{
+  logger.info(`🚀 LinkMágico Chatbot v6.0 + v7.0 Server Started on port ${PORT}`);
+  console.log(`Server started on port ${PORT}`);
 });
 
 module.exports = app;
