@@ -163,6 +163,7 @@
             text-align: center;
             margin: 0.5rem;
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            width: 100%;
         }
 
         .btn:hover {
@@ -414,7 +415,7 @@
             animation: pulse 1s infinite;
         }
 
-        /* Loading states */
+        /* Estados dos botões */
         .loading {
             opacity: 0.6;
             pointer-events: none;
@@ -425,13 +426,11 @@
             margin-left: 0.5rem;
         }
 
-        /* Success states */
         .success {
             background: linear-gradient(45deg, #00ff88, #00cc6a) !important;
             color: #000 !important;
         }
 
-        /* Error states */
         .error {
             background: linear-gradient(45deg, #e74c3c, #c0392b) !important;
             animation: shake 0.5s ease-in-out;
@@ -441,6 +440,32 @@
             0%, 100% { transform: translateX(0); }
             25% { transform: translateX(-5px); }
             75% { transform: translateX(5px); }
+        }
+
+        /* Alert messages */
+        .alert {
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            border: 1px solid;
+        }
+
+        .alert-success {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: #00ff88;
+            color: #00ff88;
+        }
+
+        .alert-error {
+            background: rgba(231, 76, 60, 0.1);
+            border-color: #e74c3c;
+            color: #e74c3c;
+        }
+
+        .alert-info {
+            background: rgba(52, 152, 219, 0.1);
+            border-color: #3498db;
+            color: #3498db;
         }
 
         /* Responsivo */
@@ -484,6 +509,9 @@
     </div>
 
     <div class="container">
+        <!-- Alerts para feedback -->
+        <div id="alertContainer"></div>
+
         <!-- Grid principal -->
         <div class="main-grid">
             <!-- Seção Criar Chatbot -->
@@ -491,32 +519,32 @@
                 <h2>🤖 Criar Chatbot</h2>
                 <p>Configure seu assistente de vendas inteligente</p>
                 
-                <form id="chatbotForm">
-                    <div class="form-group">
-                        <label>👤 Nome do Assistente Virtual:</label>
-                        <input type="text" id="robotName" placeholder="@arsenal.secreto" value="@arsenal.secreto">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>🔗 URL da Página:</label>
-                        <input type="url" id="pageUrl" placeholder="https://www.arsenalsecreto.com.br/hot">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>💡 Instruções Personalizadas (opcional):</label>
-                        <textarea id="instructions" rows="4" placeholder="Ex.: Responda em até 3 frases, direto ao ponto, sem floreios. Use os dados visíveis na página."></textarea>
-                        <small style="opacity: 0.7; color: #bdc3c7;">Dica: para respostas curtas (2-3 frases), objetivas e sem repetições.</small>
-                    </div>
-                    
-                    <button type="button" class="btn" id="createChatbotBtn" onclick="createChatbot()">
-                        🚀 Ativar Chatbot Inteligente
-                    </button>
-                </form>
+                <div class="form-group">
+                    <label>👤 Nome do Assistente Virtual:</label>
+                    <input type="text" id="robotName" placeholder="@convertamaisleads" value="@convertamaisleads">
+                </div>
+                
+                <div class="form-group">
+                    <label>🔗 URL da Página:</label>
+                    <input type="url" id="pageUrl" placeholder="https://drmonteze.com.br/produto-programamonteze/">
+                </div>
+                
+                <div class="form-group">
+                    <label>💡 Instruções Personalizadas (opcional):</label>
+                    <textarea id="instructions" rows="4" placeholder="Mostre empatia genuína (&quot;Entendo perfeitamente a sua dúvida.&quot;) e seja consultivo, amigável e motivador, como um vendedor que guia o cliente.">Mostre empatia genuína ("Entendo perfeitamente a sua dúvida.") e seja consultivo, amigável e motivador, como um vendedor que guia o cliente.</textarea>
+                    <small style="opacity: 0.7; color: #bdc3c7;">Dica: para respostas curtas (2-3 frases), objetivas e sem repetições.</small>
+                </div>
+                
+                <button type="button" class="btn" id="createChatbotBtn" onclick="createChatbot()">
+                    🚀 Ativar Chatbot Inteligente
+                </button>
 
                 <!-- Resultado da extração -->
-                <div id="extractionResult" style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(0, 0, 0, 0.3); border-radius: 10px;">
-                    <h4 style="color: #00ff88; margin-bottom: 0.5rem;">✅ Dados Extraídos:</h4>
-                    <div id="extractedContent"></div>
+                <div id="extractionResult" style="display: none; margin-top: 1rem;">
+                    <div class="alert alert-success">
+                        <strong>✅ Dados Extraídos com Sucesso!</strong>
+                        <div id="extractedContent" style="margin-top: 0.5rem; font-size: 0.9rem;"></div>
+                    </div>
                 </div>
 
                 <!-- Botões Sociais com Logos -->
@@ -583,7 +611,7 @@
                         <div class="analytics-label">👤 Chatbots Criados hoje</div>
                     </div>
                     <div class="analytics-card">
-                        <div class="analytics-value" id="messagesCount">8937</div>
+                        <div class="analytics-value" id="messagesCount">8967</div>
                         <div class="analytics-label">💬 Mensagens enviadas</div>
                     </div>
                     <div class="analytics-card">
@@ -591,7 +619,7 @@
                         <div class="analytics-label">📊 Extração de dados</div>
                     </div>
                     <div class="analytics-card">
-                        <div class="analytics-value" id="responseTime">3s</div>
+                        <div class="analytics-value" id="responseTime">2s</div>
                         <div class="analytics-label">⚡ Tempo de resposta</div>
                     </div>
                 </div>
@@ -690,18 +718,48 @@
     <script>
         // Variáveis globais
         let botCount = 147;
-        let messageCount = 8937;
+        let messageCount = 8967;
         let currentExtractedData = null;
 
-        // Função principal para criar chatbot
+        // Função para mostrar alertas
+        function showAlert(message, type = 'info') {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.innerHTML = message;
+            
+            alertContainer.innerHTML = '';
+            alertContainer.appendChild(alertDiv);
+            
+            // Auto-remove após 5 segundos
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+            
+            // Scroll para o alert
+            alertDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Função principal para criar chatbot - VERSÃO ROBUSTA
         async function createChatbot() {
-            const robotName = document.getElementById('robotName').value || '@arsenal.secreto';
+            const robotName = document.getElementById('robotName').value || '@convertamaisleads';
             const pageUrl = document.getElementById('pageUrl').value;
             const instructions = document.getElementById('instructions').value;
             const btn = document.getElementById('createChatbotBtn');
 
+            console.log('🚀 Iniciando criação do chatbot...');
+            console.log('📝 Dados:', { robotName, pageUrl, instructions });
+
             if (!pageUrl) {
-                alert('❌ Por favor, insira a URL da página.');
+                showAlert('❌ Por favor, insira a URL da página para extrair os dados.', 'error');
+                return;
+            }
+
+            // Validar URL
+            try {
+                new URL(pageUrl);
+            } catch (e) {
+                showAlert('❌ URL inválida. Use o formato: https://exemplo.com', 'error');
                 return;
             }
 
@@ -711,18 +769,25 @@
             btn.disabled = true;
 
             try {
-                // 1. Extrair dados da página
-                console.log('🔍 Iniciando extração de dados...');
+                // PASSO 1: Extrair dados da página
+                console.log('🔍 Tentando extrair dados de:', pageUrl);
+                showAlert('🔍 Extraindo dados da página... Aguarde!', 'info');
+
                 const extractResponse = await fetch('/extract', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ url: pageUrl })
+                    body: JSON.stringify({ url: pageUrl }),
+                    timeout: 15000
                 });
 
+                console.log('📡 Resposta da extração:', extractResponse.status);
+
                 if (!extractResponse.ok) {
-                    throw new Error(`Erro na extração: ${extractResponse.status}`);
+                    const errorText = await extractResponse.text();
+                    console.error('❌ Erro na extração:', errorText);
+                    throw new Error(`Erro ${extractResponse.status}: ${errorText}`);
                 }
 
                 const extractData = await extractResponse.json();
@@ -736,19 +801,23 @@
                     const contentDiv = document.getElementById('extractedContent');
                     
                     contentDiv.innerHTML = `
-                        <p><strong>Título:</strong> ${extractData.data.title}</p>
-                        <p><strong>Descrição:</strong> ${extractData.data.description}</p>
-                        <p><strong>Conteúdo:</strong> ${extractData.data.content.substring(0, 200)}...</p>
+                        <div><strong>📄 Título:</strong> ${extractData.data.title}</div>
+                        <div><strong>📝 Descrição:</strong> ${extractData.data.description}</div>
+                        <div><strong>📊 Conteúdo extraído:</strong> ${extractData.data.content.length} caracteres</div>
                     `;
                     resultDiv.style.display = 'block';
 
                     // Atualizar código do widget
                     document.getElementById('widgetRobotName').textContent = robotName;
                     
-                    // 2. Testar chat com dados extraídos
+                    showAlert('✅ Dados extraídos com sucesso! Configurando IA...', 'success');
+
+                    // PASSO 2: Testar chat com dados extraídos
                     btn.textContent = '🤖 Configurando IA...';
                     
                     const testMessage = "Olá! Como você pode me ajudar?";
+                    console.log('🤖 Testando chat com IA...');
+
                     const chatResponse = await fetch('/chat-universal', {
                         method: 'POST',
                         headers: {
@@ -759,8 +828,11 @@
                             robotName: robotName,
                             instructions: instructions,
                             extractedData: currentExtractedData
-                        })
+                        }),
+                        timeout: 10000
                     });
+
+                    console.log('🤖 Resposta do chat:', chatResponse.status);
 
                     if (chatResponse.ok) {
                         const chatData = await chatResponse.json();
@@ -774,10 +846,23 @@
                                 <div class="chat-message">${chatData.response}</div>
                             `;
                             messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                            
+                            showAlert('🎉 Chatbot ativado com sucesso! IA respondendo perfeitamente!', 'success');
+                        } else if (chatData.fallbackResponse) {
+                            messagesDiv.innerHTML += `
+                                <div class="chat-message user">${testMessage}</div>
+                                <div class="chat-message">${chatData.fallbackResponse}</div>
+                            `;
+                            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                            
+                            showAlert('⚠️ Chatbot ativado com resposta de fallback. Verifique as APIs.', 'info');
                         }
+                    } else {
+                        console.warn('⚠️ Chat API não respondeu corretamente');
+                        showAlert('⚠️ IA configurada, mas teste de chat falhou. Chatbot ainda pode funcionar.', 'info');
                     }
 
-                    // Sucesso
+                    // SUCESSO FINAL
                     btn.classList.remove('loading');
                     btn.classList.add('success');
                     btn.textContent = '✅ Chatbot Ativado com Sucesso!';
@@ -786,17 +871,45 @@
                     botCount++;
                     document.getElementById('botsCount').textContent = botCount;
                     
+                    // Salvar no localStorage
+                    localStorage.setItem('linkmagico_lastSuccess', JSON.stringify({
+                        robotName,
+                        pageUrl,
+                        instructions,
+                        timestamp: new Date().toISOString()
+                    }));
+
                 } else {
-                    throw new Error('Falha na extração de dados');
+                    throw new Error('Dados não foram extraídos corretamente da página');
                 }
 
             } catch (error) {
-                console.error('❌ Erro:', error);
+                console.error('❌ Erro completo:', error);
+                
                 btn.classList.remove('loading');
                 btn.classList.add('error');
-                btn.textContent = '❌ Erro na criação do chatbot';
+                btn.textContent = '❌ Erro na criação';
                 
-                alert(`❌ Erro: ${error.message}\n\nVerifique:\n- URL válida e acessível\n- Conexão com a internet\n- APIs configuradas`);
+                let errorMessage = '❌ Erro na criação do chatbot:<br>';
+                
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage += '🌐 <strong>Problema de conexão.</strong><br>';
+                    errorMessage += '• Verifique sua internet<br>';
+                    errorMessage += '• O servidor pode estar reiniciando<br>';
+                    errorMessage += '• Tente novamente em 30 segundos';
+                } else if (error.message.includes('404')) {
+                    errorMessage += '🔍 <strong>Página não encontrada.</strong><br>';
+                    errorMessage += '• Verifique se a URL está correta<br>';
+                    errorMessage += '• A página deve estar online';
+                } else if (error.message.includes('500')) {
+                    errorMessage += '⚙️ <strong>Erro no servidor.</strong><br>';
+                    errorMessage += '• Problema temporário nas APIs<br>';
+                    errorMessage += '• Tente novamente em alguns minutos';
+                } else {
+                    errorMessage += `🔧 <strong>Detalhes:</strong> ${error.message}`;
+                }
+                
+                showAlert(errorMessage, 'error');
             }
 
             // Resetar botão após 3 segundos
@@ -807,12 +920,15 @@
             }, 3000);
         }
 
-        // Função para enviar mensagem no preview
+        // Função para enviar mensagem no preview - VERSÃO ROBUSTA
         async function sendPreviewMessage() {
             const input = document.getElementById('previewInput');
             const message = input.value.trim();
             
-            if (!message) return;
+            if (!message) {
+                showAlert('💬 Digite uma mensagem para testar o chat!', 'info');
+                return;
+            }
             
             const messagesDiv = document.getElementById('chatMessages');
             const robotName = document.getElementById('robotName').value || 'Assistente';
@@ -826,10 +942,16 @@
             input.value = '';
             
             // Mostrar typing
-            messagesDiv.innerHTML += `<div class="chat-message" id="typing">🤖 Digitando...</div>`;
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'chat-message';
+            typingDiv.id = 'typing';
+            typingDiv.innerHTML = '🤖 Digitando...';
+            messagesDiv.appendChild(typingDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             
             try {
+                console.log('💬 Enviando mensagem para chat:', message);
+                
                 const response = await fetch('/chat-universal', {
                     method: 'POST',
                     headers: {
@@ -840,30 +962,44 @@
                         robotName: robotName,
                         instructions: instructions,
                         extractedData: currentExtractedData
-                    })
+                    }),
+                    timeout: 10000
                 });
 
                 // Remover typing
-                document.getElementById('typing')?.remove();
+                typingDiv.remove();
+
+                console.log('💬 Resposta do chat:', response.status);
 
                 if (response.ok) {
                     const data = await response.json();
+                    console.log('✅ Dados do chat:', data);
+                    
                     if (data.success && data.response) {
                         messagesDiv.innerHTML += `<div class="chat-message">${data.response}</div>`;
                         
                         // Incrementar contador de mensagens
                         messageCount++;
                         document.getElementById('messagesCount').textContent = messageCount;
+                        
+                        showAlert('✅ IA respondeu com sucesso!', 'success');
+                    } else if (data.fallbackResponse) {
+                        messagesDiv.innerHTML += `<div class="chat-message">${data.fallbackResponse}</div>`;
+                        showAlert('⚠️ Resposta de fallback utilizada.', 'info');
                     } else {
-                        messagesDiv.innerHTML += `<div class="chat-message">❌ ${data.fallbackResponse || 'Erro na resposta'}</div>`;
+                        messagesDiv.innerHTML += `<div class="chat-message">❌ Resposta não disponível no momento.</div>`;
+                        showAlert('❌ Erro na resposta da IA.', 'error');
                     }
                 } else {
-                    messagesDiv.innerHTML += `<div class="chat-message">❌ Erro de conexão. Tente novamente.</div>`;
+                    messagesDiv.innerHTML += `<div class="chat-message">❌ Erro de conexão com a IA. Tente novamente.</div>`;
+                    showAlert('❌ Erro de conexão. Verifique se o servidor está online.', 'error');
                 }
 
             } catch (error) {
-                document.getElementById('typing')?.remove();
+                console.error('💬 Erro no chat:', error);
+                typingDiv?.remove();
                 messagesDiv.innerHTML += `<div class="chat-message">❌ Erro: ${error.message}</div>`;
+                showAlert('❌ Erro na comunicação com a IA. Tente novamente.', 'error');
             }
             
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -889,47 +1025,88 @@
             };
 
             if (urls[platform]) {
-                window.open(urls[platform], '_blank', 'noopener,noreferrer');
+                try {
+                    window.open(urls[platform], '_blank', 'noopener,noreferrer');
+                    showAlert(`📱 Abrindo ${platform.charAt(0).toUpperCase() + platform.slice(1)}...`, 'info');
+                } catch (error) {
+                    window.location.href = urls[platform];
+                }
             }
         }
 
         // Função para abrir analytics
         function openAnalytics() {
             window.open('/dashboard/demo', '_blank');
+            showAlert('📊 Abrindo Dashboard Analytics...', 'info');
         }
 
-        // Event listener para Enter no chat preview
-        document.getElementById('previewInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendPreviewMessage();
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 LinkMágico v6.0 + v7.0 inicializado');
+            
+            // Enter no preview do chat
+            document.getElementById('previewInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendPreviewMessage();
+                }
+            });
+            
+            // Auto-save dos campos
+            const autoSave = () => {
+                const data = {
+                    robotName: document.getElementById('robotName').value,
+                    pageUrl: document.getElementById('pageUrl').value,
+                    instructions: document.getElementById('instructions').value
+                };
+                localStorage.setItem('linkmagico_form', JSON.stringify(data));
+            };
+
+            // Auto-load dos campos
+            const autoLoad = () => {
+                const saved = localStorage.getItem('linkmagico_form');
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    if (data.robotName) document.getElementById('robotName').value = data.robotName;
+                    if (data.pageUrl) document.getElementById('pageUrl').value = data.pageUrl;
+                    if (data.instructions) document.getElementById('instructions').value = data.instructions;
+                }
+            };
+
+            // Event listeners para auto-save
+            document.getElementById('robotName').addEventListener('input', autoSave);
+            document.getElementById('pageUrl').addEventListener('input', autoSave);
+            document.getElementById('instructions').addEventListener('input', autoSave);
+
+            // Carregar dados salvos
+            autoLoad();
+
+            // Verificar status das APIs
+            checkAPIStatus();
+            
+            // Focar no primeiro campo vazio
+            if (!document.getElementById('robotName').value) {
+                document.getElementById('robotName').focus();
+            } else if (!document.getElementById('pageUrl').value) {
+                document.getElementById('pageUrl').focus();
             }
         });
 
-        // Atualizar contadores em tempo real
-        setInterval(() => {
-            if (Math.random() > 0.8) {
-                messageCount += Math.floor(Math.random() * 2) + 1;
-                document.getElementById('messagesCount').textContent = messageCount;
-                
-                // Simular tempo de resposta
-                const times = ['1s', '2s', '3s', '2s', '1s'];
-                document.getElementById('responseTime').textContent = times[Math.floor(Math.random() * times.length)];
-            }
-        }, 8000);
-
-        // Verificar status das APIs no carregamento
+        // Verificar status das APIs
         async function checkAPIStatus() {
             try {
-                const response = await fetch('/status');
+                console.log('🔍 Verificando status das APIs...');
+                const response = await fetch('/status', { timeout: 5000 });
                 const data = await response.json();
                 console.log('📊 Status das APIs:', data);
                 
-                // Atualizar indicador visual
+                // Atualizar indicadores visuais
                 const indicators = document.querySelectorAll('.status-indicator');
                 indicators.forEach(indicator => {
                     indicator.style.background = '#00ff88';
                     indicator.style.boxShadow = '0 0 10px #00ff88';
                 });
+                
+                showAlert('✅ Sistema online! Todas as APIs funcionando.', 'success');
                 
             } catch (error) {
                 console.warn('⚠️ Status das APIs indisponível:', error);
@@ -940,48 +1117,37 @@
                     indicator.style.background = '#f39c12';
                     indicator.style.boxShadow = '0 0 10px #f39c12';
                 });
+                
+                showAlert('⚠️ Verificação de status falhou. Sistema pode estar reiniciando.', 'info');
             }
         }
 
-        // Inicializar aplicação
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 LinkMágico v6.0 + v7.0 inicializado');
-            checkAPIStatus();
-            
-            // Focar no primeiro input
-            document.getElementById('robotName').focus();
-        });
+        // Atualizar contadores em tempo real
+        setInterval(() => {
+            if (Math.random() > 0.8) {
+                messageCount += Math.floor(Math.random() * 2) + 1;
+                document.getElementById('messagesCount').textContent = messageCount;
+                
+                // Simular tempo de resposta variável
+                const times = ['1s', '2s', '3s', '2s', '1s'];
+                document.getElementById('responseTime').textContent = times[Math.floor(Math.random() * times.length)];
+            }
+        }, 8000);
 
-        // Auto-save no localStorage (para UX)
-        function autoSave() {
-            const robotName = document.getElementById('robotName').value;
-            const pageUrl = document.getElementById('pageUrl').value;
-            const instructions = document.getElementById('instructions').value;
-            
-            localStorage.setItem('linkmagico_robotName', robotName);
-            localStorage.setItem('linkmagico_pageUrl', pageUrl);
-            localStorage.setItem('linkmagico_instructions', instructions);
-        }
+        // Debug helper
+        window.debugLinkMagico = function() {
+            console.log('🔍 Debug Info:');
+            console.log('Current extracted data:', currentExtractedData);
+            console.log('Bot count:', botCount);
+            console.log('Message count:', messageCount);
+            console.log('Form data:', {
+                robotName: document.getElementById('robotName').value,
+                pageUrl: document.getElementById('pageUrl').value,
+                instructions: document.getElementById('instructions').value
+            });
+        };
 
-        // Auto-load do localStorage
-        function autoLoad() {
-            const robotName = localStorage.getItem('linkmagico_robotName');
-            const pageUrl = localStorage.getItem('linkmagico_pageUrl');
-            const instructions = localStorage.getItem('linkmagico_instructions');
-            
-            if (robotName) document.getElementById('robotName').value = robotName;
-            if (pageUrl) document.getElementById('pageUrl').value = pageUrl;
-            if (instructions) document.getElementById('instructions').value = instructions;
-        }
-
-        // Event listeners para auto-save
-        document.getElementById('robotName').addEventListener('input', autoSave);
-        document.getElementById('pageUrl').addEventListener('input', autoSave);
-        document.getElementById('instructions').addEventListener('input', autoSave);
-
-        // Carregar dados salvos
-        autoLoad();
-
+        console.log('🎉 LinkMágico carregado! Digite debugLinkMagico() no console para debug.');
     </script>
 </body>
 </html>
