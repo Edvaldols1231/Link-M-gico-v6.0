@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkMágico Chatbot v6.0 - IA Conversacional Inteligente para Vendas Online</title>
+    <meta name="description" content="Nova geração de chatbot com IA avançada, extração universal de dados e deep linking multiplataforma. Transforme suas páginas de vendas em conversas inteligentes.">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #667eea);
+            background-size: 200% 100%;
+            animation: shimmer 3s ease-in-out infinite;
+        }
+        
+        @keyframes shimmer {
+            0%, 100% { background-position: 200% 0; }
+            50% { background-position: -200% 0; }
+        }
+        
+        .logo {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.8rem;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1rem;
+        }
+        
+        .version-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+        
+        @keyframes glow {
+            from { box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); }
+            to { box-shadow: 0 0 20px rgba(40, 167, 69, 0.8); }
+        }
+        
+        .alert {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            font-weight: bold;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .alert::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            animation: slide 3s ease-in-out infinite;
+        }
+        
+        @keyframes slide {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn:hover::before {
+            left: 100%;
+        }
+        
+        .social-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .social-btn {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .social-btn:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .social-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+        
+        .social-btn:hover::before {
+            left: 100%;
+        }
+        
+        .whatsapp { background: #25d366; }
+        .instagram { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+        .facebook { background: #1877f2; }
+        .youtube { background: #ff0000; }
+        .tiktok { background: #000000; }
+        .twitter { background: #1da1f2; }
+        .kwai { background: #ff6600; }
+        .linkedin { background: #0077b5; }
+        .telegram { background: #0088cc; }
+        .messenger { background: #006aff; }
+        .prompt { background: #28a745; }
+        .analytics { background: #6c757d; }
+        
+        .loading {
+            display: none;
+            margin: 20px 0;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .result {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            text-align: left;
+            border: 1px solid #e9ecef;
+        }
+        
+        .success-message {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            color: #155724;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #c3e6cb;
+            animation: slideInDown 0.5s ease-out;
+        }
+        
+        @keyframes slideInDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .chatbot-link {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border: 2px solid #2196f3;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
+            word-break: break-all;
+            animation: slideInLeft 0.5s ease-out;
+        }
+        
+        @keyframes slideInLeft {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .chatbot-link a {
+            color: #1976d2;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        
+        .chatbot-link a:hover {
+            text-decoration: underline;
+        }
+        
+        .extracted-data {
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            animation: slideInUp 0.5s ease-out;
+        }
+        
+        @keyframes slideInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .extracted-data p {
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .extracted-data strong {
+            color: #495057;
+        }
+        
+        .status-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            font-size: 0.8rem;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        .status-online {
+            background: #28a745;
+            animation: pulse-green 2s ease-in-out infinite;
+        }
+        
+        .status-offline {
+            background: #dc3545;
+        }
+        
+        @keyframes pulse-green {
+            0%, 100% { box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(40, 167, 69, 0.8); }
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 500px;
+            animation: slideInDown 0.3s ease-out;
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover {
+            color: #000;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .social-buttons {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            .chatbot-link a {
+                font-size: 0.8rem;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
+            }
+            
+            .logo {
+                font-size: 2rem;
+            }
+        }
+        
+        .feature-highlight {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 0.9rem;
+            color: #856404;
+        }
+        
+        .typing-indicator {
+            display: none;
+            padding: 10px;
+            font-style: italic;
+            color: #666;
+        }
+        
+        .typing-indicator::after {
+            content: '';
+            animation: typing 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes typing {
+            0%, 60%, 100% { content: ''; }
+            20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+        }
+    </style>
+</head>
+<body>
+    <div class="status-indicator status-online" id="statusIndicator">
+        🟢 Sistema Online
+    </div>
+
+    <div class="container">
+        <div class="logo">🤖</div>
+        <h1>LinkMágico Chatbot v6.0</h1>
+        <div class="version-badge">NOVA GERAÇÃO</div>
+        <p class="subtitle">IA Conversacional Inteligente para Vendas Online</p>
+        
+        <div class="alert">
+            ✨ VERSÃO 6.0: IA Avançada + Extração Universal + Deep Linking!  
+
+            🚀 Nova geração de chatbot com inteligência emocional e persuasão
+        </div>
+        
+        <div class="feature-highlight">
+            🧠 <strong>IA Conversacional Avançada:</strong> Respostas humanas, persuasivas e contextuais  
+
+            🌐 <strong>Extração Universal:</strong> Dados de qualquer site da web  
+
+            📱 <strong>Deep Linking:</strong> Direcionamento inteligente para apps móveis
+        </div>
+        
+        <form id="chatbotForm">
+            <div class="form-group">
+                <label for="robotName">🤖 Nome do Assistente Virtual:</label>
+                <input type="text" id="robotName" placeholder="@arsenal.secreto" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="salesUrl">🔗 URL da Página de Vendas:</label>
+                <input type="url" id="salesUrl" placeholder="https://www.arsenalsecretodosceos.com.br/Nutrileads" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="customInstructions">💡 Instruções Personalizadas (opcional ):</label>
+                <textarea id="customInstructions" placeholder="Adicione instruções específicas para o chatbot, como tom de voz, informações extras, estratégias de vendas, etc."></textarea>
+            </div>
+            
+            <button type="submit" class="btn">🚀 Ativar Chatbot Inteligente v6.0</button>
+        </form>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Extraindo dados com IA e configurando sistema avançado...</p>
+            <div class="typing-indicator" id="typingIndicator">
+                Analisando página com múltiplos métodos
+            </div>
+        </div>
+        
+        <div class="result" id="result">
+            <div class="success-message">
+                <h3>✅ Chatbot v6.0 Ativado com Sucesso!</h3>
+                <p>Sistema de IA avançada configurado e pronto para vendas!</p>
+            </div>
+            
+            <div class="chatbot-link">
+                <strong>🔗 Link do Chatbot:</strong>  
+
+                <a href="#" id="chatbotLink" target="_blank">Clique aqui para acessar</a>
+            </div>
+            
+            <div class="extracted-data">
+                <strong>📊 Dados Extraídos com IA:</strong>
+                <div id="extractedData"></div>
+            </div>
+        </div>
+        
+        <div class="social-buttons">
+            <button class="social-btn whatsapp" onclick="shareToSocial('whatsapp')">📱 WhatsApp</button>
+            <button class="social-btn instagram" onclick="shareToSocial('instagram')">📸 Instagram</button>
+            <button class="social-btn facebook" onclick="shareToSocial('facebook')">👥 Facebook</button>
+            <button class="social-btn youtube" onclick="shareToSocial('youtube')">🎥 YouTube</button>
+            <button class="social-btn tiktok" onclick="shareToSocial('tiktok')">🎵 TikTok</button>
+            <button class="social-btn twitter" onclick="shareToSocial('twitter')">🐦 Twitter</button>
+            <button class="social-btn kwai" onclick="shareToSocial('kwai')">🎬 Kwai</button>
+            <button class="social-btn linkedin" onclick="shareToSocial('linkedin')">💼 LinkedIn</button>
+            <button class="social-btn telegram" onclick="shareToSocial('telegram')">✈️ Telegram</button>
+            <button class="social-btn messenger" onclick="shareToSocial('messenger')">💬 Messenger</button>
+            <button class="social-btn prompt" onclick="generatePrompt()">🧠 Prompt</button>
+            <button class="social-btn analytics" onclick="showAnalytics()">📊 Analytics</button>
+        </div>
+    </div>
+
+    <!-- Modal para compartilhamento -->
+    <div id="shareModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3 id="modalTitle">Compartilhar Chatbot</h3>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentChatbotUrl = '';
+        let extractedPageData = null;
+        let deviceInfo = null;
+        
+        // Detectar informações do dispositivo
+        function detectDevice() {
+            const userAgent = navigator.userAgent;
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+            const isTablet = /iPad|Android(?=.*\bMobile\b)/i.test(userAgent);
+            
+            return {
+                isMobile: isMobile && !isTablet,
+                isTablet: isTablet,
+                isDesktop: !isMobile && !isTablet,
+                userAgent: userAgent,
+                platform: navigator.platform,
+                language: navigator.language
+            };
+        }
+        
+        deviceInfo = detectDevice();
+        
+        // Verificar status do sistema
+        async function checkSystemStatus() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                
+                const indicator = document.getElementById('statusIndicator');
+                if (data.status === 'healthy') {
+                    indicator.className = 'status-indicator status-online';
+                    indicator.textContent = '🟢 Sistema Online v6.0';
+                } else {
+                    indicator.className = 'status-indicator status-offline';
+                    indicator.textContent = '🔴 Sistema Offline';
+                }
+            } catch (error) {
+                const indicator = document.getElementById('statusIndicator');
+                indicator.className = 'status-indicator status-offline';
+                indicator.textContent = '🔴 Erro de Conexão';
+            }
+        }
+        
+        // Verificar status a cada 30 segundos
+        setInterval(checkSystemStatus, 30000);
+        checkSystemStatus(); // Checar no carregamento
+
+        // Função para extrair parâmetros da URL
+        function getUrlParameter(name) {
+            name = name.replace(/[[\]]/g, '\\$&');
+            var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
+            var results = regex.exec(window.location.href);
+            if (!results) return null;
+            if (!results[2]) return '';
+            return decodeURIComponent(results[2].replace(/\+/g, ' '));
+        }
+
+        // Lógica para a página do chatbot
+        if (window.location.pathname.includes('/chatbot')) {
+            const robotName = getUrlParameter('robot');
+            const salesUrl = getUrlParameter('url');
+            const instructions = getUrlParameter('instructions'); // Captura as instruções
+
+            document.title = `Chatbot ${robotName} - LinkMágico`;
+            document.body.innerHTML = `
+                <div class="container">
+                    <div class="logo">🤖</div>
+                    <h1>Chatbot ${robotName}</h1>
+                    <p class="subtitle">Seu assistente inteligente para ${salesUrl}</p>
+                    <div class="chat-window">
+                        <div class="messages" id="messages"></div>
+                        <div class="input-area">
+                            <input type="text" id="chatInput" placeholder="Digite sua mensagem...">
+                            <button id="sendButton">Enviar</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const messagesDiv = document.getElementById('messages');
+            const chatInput = document.getElementById('chatInput');
+            const sendButton = document.getElementById('sendButton');
+
+            // Mensagem de boas-vindas inicial
+            addMessage('bot', `Olá! 👋 Sou o ${robotName}, seu assistente especializado em "${extractedPageData ? extractedPageData.title : 'esta página'}".\n\nComo posso te ajudar hoje? Posso responder sobre:\n• Preços e formas de pagamento\n• Benefícios e características\n• Depoimentos de clientes\n• Processo de compra`);
+
+            sendButton.addEventListener('click', sendMessage);
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+
+            async function sendMessage() {
+                const message = chatInput.value.trim();
+                if (message === '') return;
+
+                addMessage('user', message);
+                chatInput.value = '';
+
+                // Adicionar indicador de digitação
+                const typingIndicator = document.createElement('div');
+                typingIndicator.className = 'message bot typing-indicator';
+                typingIndicator.textContent = 'Digitando...';
+                messagesDiv.appendChild(typingIndicator);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+                try {
+                    const response = await fetch('/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: message,
+                            url: salesUrl,
+                            robotName: robotName,
+                            instructions: instructions // Envia as instruções para o backend
+                        })
+                    });
+                    const data = await response.json();
+
+                    // Remover indicador de digitação
+                    messagesDiv.removeChild(typingIndicator);
+
+                    if (data.success) {
+                        addMessage('bot', data.response);
+                    } else {
+                        addMessage('bot', 'Desculpe, não consegui processar sua solicitação no momento. Por favor, tente novamente mais tarde.');
+                    }
+                } catch (error) {
+                    console.error('Erro ao enviar mensagem:', error);
+                    // Remover indicador de digitação
+                    messagesDiv.removeChild(typingIndicator);
+                    addMessage('bot', 'Ocorreu um erro de conexão. Por favor, verifique sua internet ou tente novamente.');
+                }
+            }
+
+            function addMessage(sender, text) {
+                const messageElement = document.createElement('div');
+                messageElement.className = `message ${sender}`;
+                messageElement.innerHTML = text.replace(/\n/g, '  
+'); // Permite quebras de linha
+                messagesDiv.appendChild(messageElement);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }
+
+            // Estilos para a janela de chat
+            const chatStyles = document.createElement('style');
+            chatStyles.innerHTML = `
+                .chat-window {
+                    background: #f9f9f9;
+                    border-radius: 10px;
+                    height: 400px;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                    border: 1px solid #e9ecef;
+                    margin-top: 20px;
+                }
+                .messages {
+                    flex-grow: 1;
+                    padding: 15px;
+                    overflow-y: auto;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                }
+                .message {
+                    max-width: 80%;
+                    padding: 10px 15px;
+                    border-radius: 15px;
+                    line-height: 1.4;
+                    word-wrap: break-word;
+                }
+                .message.user {
+                    background: #e3f2fd;
+                    color: #1976d2;
+                    align-self: flex-end;
+                    border-bottom-right-radius: 2px;
+                }
+                .message.bot {
+                    background: #e9ecef;
+                    color: #333;
+                    align-self: flex-start;
+                    border-bottom-left-radius: 2px;
+                }
+                .input-area {
+                    display: flex;
+                    padding: 10px;
+                    border-top: 1px solid #e9ecef;
+                    background: #fff;
+                }
+                .input-area input {
+                    flex-grow: 1;
+                    border: 1px solid #dee2e6;
+                    border-radius: 20px;
+                    padding: 10px 15px;
+                    margin-right: 10px;
+                    font-size: 1rem;
+                }
+                .input-area button {
+                    background: linear-gradient(135deg, #667eea, #764ba2);
+                    color: white;
+                    border: none;
+                    border-radius: 20px;
+                    padding: 10px 20px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    transition: background 0.3s ease;
+                }
+                .input-area button:hover {
+                    background: linear-gradient(135deg, #764ba2, #667eea);
+                }
+                .message.bot.typing-indicator {
+                    background: #f0f0f0;
+                    color: #555;
+                    font-style: italic;
+                    padding: 8px 12px;
+                    border-radius: 15px;
+                    align-self: flex-start;
+                }
+            `;
+            document.head.appendChild(chatStyles);
+
+            // Função para carregar dados extraídos e exibir na mensagem de boas-vindas
+            async function loadExtractedData() {
+                try {
+                    const response = await fetch(`/extract?url=${encodeURIComponent(salesUrl)}`);
+                    const data = await response.json();
+                    if (data.success) {
+                        extractedPageData = data.data;
+                        // Atualiza a mensagem de boas-vindas com dados reais
+                        messagesDiv.innerHTML = ''; // Limpa a mensagem antiga
+                        addMessage('bot', `Olá! 👋 Sou o ${robotName}, seu assistente especializado em "${extractedPageData.title || 'esta página'}".\n\nComo posso te ajudar hoje? Posso responder sobre:\n• Preços e formas de pagamento\n• Benefícios e características\n•• Depoimentos de clientes\n• Processo de compra`);
+                    }
+                } catch (error) {
+                    console.error('Erro ao carregar dados extraídos:', error);
+                }
+            }
+            loadExtractedData();
+
+        } else { // Lógica para a página principal
+            const chatbotForm = document.getElementById('chatbotForm');
+            const loadingDiv = document.getElementById('loading');
+            const resultDiv = document.getElementById('result');
+            const chatbotLink = document.getElementById('chatbotLink');
+            const extractedDataDiv = document.getElementById('extractedData');
+
+            chatbotForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const robotName = document.getElementById('robotName').value;
+                const salesUrl = document.getElementById('salesUrl').value;
+                const customInstructions = document.getElementById('customInstructions').value; // Captura as instruções
+
+                loadingDiv.style.display = 'block';
+                resultDiv.style.display = 'none';
+                extractedDataDiv.innerHTML = '';
+
+                try {
+                    const response = await fetch('/extract', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ url: salesUrl })
+                    });
+                    const data = await response.json();
+
+                    loadingDiv.style.display = 'none';
+
+                    if (data.success) {
+                        extractedPageData = data.data;
+                        const chatbotGeneratedUrl = `/chat-universal-ui?url=${encodeURIComponent(salesUrl)}&robot=${encodeURIComponent(robotName)}`; // UI Universal
+                        chatbotLink.href = chatbotGeneratedUrl;
+                        chatbotLink.textContent = chatbotGeneratedUrl;
+
+                        let dataHtml = `
+                            <p><strong>Título:</strong> ${extractedPageData.title || 'Não encontrado'}</p>
+                            <p><strong>Descrição:</strong> ${extractedPageData.description || 'Não encontrada'}</p>
+                            <p><strong>Preço:</strong> ${extractedPageData.price || 'Consulte o preço na página'}</p>
+                            <p><strong>Benefícios:</strong> ${extractedPageData.benefits && extractedPageData.benefits.length > 0 ? extractedPageData.benefits.join(', ') : 'Não encontrados'}</p>
+                            <p><strong>CTA:</strong> ${extractedPageData.cta || 'Não encontrado'}</p>
+                        `;
+                        extractedDataDiv.innerHTML = dataHtml;
+                        resultDiv.style.display = 'block';
+                    } else {
+                        alert('Erro ao extrair dados: ' + data.error);
+                    }
+                } catch (error) {
+                    loadingDiv.style.display = 'none';
+                    alert('Erro de conexão ou servidor: ' + error.message);
+                    console.error('Erro:', error);
+                }
+            });
+
+            // Funções para modais sociais
+            const shareModal = document.getElementById('shareModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalContent = document.getElementById('modalContent');
+
+            function openModal() {
+                shareModal.style.display = 'block';
+            }
+
+            function closeModal() {
+                shareModal.style.display = 'none';
+            }
+
+            window.onclick = function(event) {
+                if (event.target == shareModal) {
+                    closeModal();
+                }
+            }
+
+            async function shareToSocial(platform) {
+                if (!currentChatbotUrl) {
+                    alert('Por favor, ative o chatbot primeiro para gerar o link.');
+                    return;
+                }
+
+                modalTitle.textContent = `Compartilhar no ${platform.charAt(0).toUpperCase() + platform.slice(1)}`;
+                modalContent.innerHTML = `<p>Gerando link para ${platform}...</p>`;
+                openModal();
+
+                try {
+                    const response = await fetch('/generate-deeplink', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            platform: platform,
+                            content: `Confira o novo Chatbot IA para ${extractedPageData ? extractedPageData.title : 'sua página'}! Acesse: ${currentChatbotUrl}`,
+                            userAgent: deviceInfo.userAgent,
+                            chatbotUrl: currentChatbotUrl
+                        })
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        let contentHtml = `<p><strong>Link Primário:</strong> <a href="${data.links.primary}" target="_blank">${data.links.primary}</a></p>`;
+                        if (data.links.fallback) {
+                            contentHtml += `<p><strong>Link de Fallback:</strong> <a href="${data.links.fallback}" target="_blank">${data.links.fallback}</a></p>`;
+                        }
+                        if (data.links.qrCode) {
+                            contentHtml += `<p><strong>QR Code:</strong></p><img src="${data.links.qrCode}" alt="QR Code" style="width: 150px; height: 150px;">`;
+                        }
+                        modalContent.innerHTML = contentHtml;
+                    } else {
+                        modalContent.innerHTML = `<p>Erro ao gerar link para ${platform}: ${data.error}</p>`;
+                    }
+                } catch (error) {
+                    console.error('Erro ao gerar deep link:', error);
+                    modalContent.innerHTML = `<p>Erro de conexão ao gerar link para ${platform}.</p>`;
+                }
+            }
+
+            function generatePrompt() {
+                modalTitle.textContent = 'Gerar Prompt para IA';
+                modalContent.innerHTML = '<p>Funcionalidade de geração de prompt em desenvolvimento. Em breve você poderá criar prompts otimizados para sua IA!</p>';
+                openModal();
+            }
+
+            function showAnalytics() {
+                modalTitle.textContent = 'Analytics do Chatbot';
+                modalContent.innerHTML = '<p>Funcionalidade de Analytics em desenvolvimento. Em breve você poderá acompanhar as conversas e métricas do seu chatbot!</p>';
+                openModal();
+            }
+
+            // Atualizar currentChatbotUrl quando o link é gerado
+            document.getElementById('chatbotForm').addEventListener('submit', () => {
+                setTimeout(() => {
+                    const linkElement = document.getElementById('chatbotLink');
+                    if (linkElement) {
+                        currentChatbotUrl = linkElement.href;
+                    }
+                }, 1000); // Pequeno atraso para garantir que o link foi gerado
+            });
+        }
+    </script>
+</body>
+</html>

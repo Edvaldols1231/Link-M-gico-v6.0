@@ -1,0 +1,57 @@
+{"level":"info","message":"🚀 LinkMágico Chatbot v6.0 rodando na porta 3000","timestamp":"2025-08-03T15:26:16.200Z"}
+{"level":"info","message":"🌐 Acesse: http://localhost:3000","timestamp":"2025-08-03T15:26:16.202Z"}
+{"level":"info","message":"✨ Nova geração de IA conversacional ativada!","timestamp":"2025-08-03T15:26:16.203Z"}
+{"level":"info","message":"🚀 LinkMágico Chatbot v6.0 rodando na porta 3000","timestamp":"2025-08-03T15:26:30.759Z"}
+{"level":"info","message":"🌐 Acesse: http://localhost:3000","timestamp":"2025-08-03T15:26:30.762Z"}
+{"level":"info","message":"✨ Nova geração de IA conversacional ativada!","timestamp":"2025-08-03T15:26:30.762Z"}
+{"level":"info","message":"Extração solicitada para: https://example.com","timestamp":"2025-08-03T15:27:11.356Z"}
+{"level":"info","message":"Iniciando extração UNIVERSAL para: https://example.com","timestamp":"2025-08-03T15:27:11.357Z"}
+{"level":"info","message":"Usando método: axios","timestamp":"2025-08-03T15:27:11.357Z"}
+{"level":"warn","message":"Axios extraction failed for https://example.com:","timestamp":"2025-08-03T15:27:16.408Z"}
+{"level":"info","message":"Tentando fallback com: cloudscraper","timestamp":"2025-08-03T15:27:16.409Z"}
+{"level":"warn","message":"Cloudscraper extraction failed for https://example.com:","timestamp":"2025-08-03T15:27:21.675Z"}
+{"level":"info","message":"Tentando fallback com: puppeteer","timestamp":"2025-08-03T15:27:21.676Z"}
+{"level":"warn","message":"Puppeteer extraction failed for https://example.com:","timestamp":"2025-08-03T15:27:52.826Z"}
+{"level":"info","message":"Tentando fallback com: playwright","timestamp":"2025-08-03T15:27:52.942Z"}
+{"level":"warn","message":"Playwright extraction failed for https://example.com:","timestamp":"2025-08-03T15:27:52.953Z"}
+{"level":"error","message":"Erro na extração universal: Todos os métodos de extração falharam","stack":"Error: Todos os métodos de extração falharam\n    at UniversalWebExtractor.extractData (/home/ubuntu/linkmagico_chatbot_v6_nodejs/server_v6.js:329:15)\n    at async /home/ubuntu/linkmagico_chatbot_v6_nodejs/server_v6.js:863:27","timestamp":"2025-08-03T15:27:52.954Z"}
+{"level":"info","message":"Iniciando extração UNIVERSAL para: https://example.com","timestamp":"2025-08-03T15:27:53.970Z"}
+{"level":"info","message":"Usando método: axios","timestamp":"2025-08-03T15:27:53.970Z"}
+{"level":"warn","message":"Axios extraction failed for https://example.com:","timestamp":"2025-08-03T15:27:58.976Z"}
+{"level":"info","message":"Tentando fallback com: cloudscraper","timestamp":"2025-08-03T15:27:58.977Z"}
+{"level":"warn","message":"Cloudscraper extraction failed for https://example.com:","timestamp":"2025-08-03T15:28:03.984Z"}
+{"level":"info","message":"Tentando fallback com: puppeteer","timestamp":"2025-08-03T15:28:03.984Z"}
+{"level":"info","message":"Iniciando extração UNIVERSAL para: https://example.com","timestamp":"2025-08-03T15:28:09.135Z"}
+{"level":"info","message":"Usando método: axios","timestamp":"2025-08-03T15:28:09.136Z"}
+{"level":"warn","message":"Axios extraction failed for https://example.com:","timestamp":"2025-08-03T15:28:14.143Z"}
+{"level":"info","message":"Tentando fallback com: cloudscraper","timestamp":"2025-08-03T15:28:14.143Z"}
+{"level":"warn","message":"Cloudscraper extraction failed for https://example.com:","timestamp":"2025-08-03T15:28:19.151Z"}
+{"level":"info","message":"Tentando fallback com: puppeteer","timestamp":"2025-08-03T15:28:19.151Z"}
+{"level":"warn","message":"Puppeteer extraction failed for https://example.com:","timestamp":"2025-08-03T15:28:34.361Z"}
+{"level":"info","message":"Tentando fallback com: playwright","timestamp":"2025-08-03T15:28:34.459Z"}
+{"level":"warn","message":"Playwright extraction failed for https://example.com:","timestamp":"2025-08-03T15:28:34.464Z"}
+{"level":"error","message":"Erro na extração universal: Todos os métodos de extração falharam","stack":"Error: Todos os métodos de extração falharam\n    at UniversalWebExtractor.extractData (/home/ubuntu/linkmagico_chatbot_v6_nodejs/server_v6.js:329:15)\n    at async /home/ubuntu/linkmagico_chatbot_v6_nodejs/server_v6.js:896:18","timestamp":"2025-08-03T15:28:34.464Z"}
+{"level":"warn","message":"Puppeteer extraction failed for https://example.com:","timestamp":"2025-08-03T15:28:49.494Z"}
+{"level":"info","message":"Tentando fallback com: playwright","timestamp":"2025-08-03T15:28:49.601Z"}
+{"level":"warn","message":"Playwright extraction failed for https://example.com:","timestamp":"2025-08-03T15:28:49.603Z"}
+{"level":"error","message":"Erro na extração universal: Todos os métodos de extração falharam","stack":"Error: Todos os métodos de extração falharam\n    at UniversalWebExtractor.extractData (/home/ubuntu/linkmagico_chatbot_v6_nodejs/server_v6.js:329:15)\n    at async /home/ubuntu/linkmagico_chatbot_v6_nodejs/server_v6.js:1022:18","timestamp":"2025-08-03T15:28:49.603Z"}
+{"level":"info","message":"Iniciando extração UNIVERSAL para: https://example.com","timestamp":"2025-08-03T15:29:07.398Z"}
+{"level":"info","message":"Usando método: axios","timestamp":"2025-08-03T15:29:07.399Z"}
+{"level":"warn","message":"Axios extraction failed for https://example.com:","timestamp":"2025-08-03T15:29:12.406Z"}
+{"level":"info","message":"Tentando fallback com: cloudscraper","timestamp":"2025-08-03T15:29:12.406Z"}
+{"level":"warn","message":"Cloudscraper extraction failed for https://example.com:","timestamp":"2025-08-03T15:29:17.414Z"}
+{"level":"info","message":"Tentando fallback com: puppeteer","timestamp":"2025-08-03T15:29:17.414Z"}
+{"level":"info","message":"Iniciando extração UNIVERSAL para: https://example.com","timestamp":"2025-08-03T15:29:40.761Z"}
+{"level":"info","message":"Usando método: axios","timestamp":"2025-08-03T15:29:40.761Z"}
+{"level":"warn","message":"Axios extraction failed for https://example.com:","timestamp":"2025-08-03T15:29:45.769Z"}
+{"level":"info","message":"Tentando fallback com: cloudscraper","timestamp":"2025-08-03T15:29:45.769Z"}
+{"level":"warn","message":"Puppeteer extraction failed for https://example.com:","timestamp":"2025-08-03T15:29:47.776Z"}
+{"level":"info","message":"Tentando fallback com: playwright","timestamp":"2025-08-03T15:29:47.865Z"}
+{"level":"warn","message":"Playwright extraction failed for https://example.com:","timestamp":"2025-08-03T15:29:47.867Z"}
+{"level":"error","message":"Erro na extração universal: Todos os métodos de extração falharam","stack":"Error: Todos os métodos de extração falharam\n    at UniversalWebExtractor.extractData (/home/ubuntu/linkmagico_chatbot_v6_nodejs/server_v6.js:329:15)\n    at async /home/ubuntu/linkmagico_chatbot_v6_nodejs/server_v6.js:896:18","timestamp":"2025-08-03T15:29:47.867Z"}
+{"level":"warn","message":"Cloudscraper extraction failed for https://example.com:","timestamp":"2025-08-03T15:29:50.776Z"}
+{"level":"info","message":"Tentando fallback com: puppeteer","timestamp":"2025-08-03T15:29:50.776Z"}
+{"level":"warn","message":"Puppeteer extraction failed for https://example.com:","timestamp":"2025-08-03T15:30:21.116Z"}
+{"level":"info","message":"Tentando fallback com: playwright","timestamp":"2025-08-03T15:30:21.203Z"}
+{"level":"warn","message":"Playwright extraction failed for https://example.com:","timestamp":"2025-08-03T15:30:21.205Z"}
+{"level":"error","message":"Erro na extração universal: Todos os métodos de extração falharam","stack":"Error: Todos os métodos de extração falharam\n    at UniversalWebExtractor.extractData (/home/ubuntu/linkmagico_chatbot_v6_nodejs/server_v6.js:329:15)\n    at async /home/ubuntu/linkmagico_chatbot_v6_nodejs/server_v6.js:896:18","timestamp":"2025-08-03T15:30:21.206Z"}

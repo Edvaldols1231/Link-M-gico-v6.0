@@ -1,0 +1,54 @@
+{
+  "name": "linkmagico-chatbot-v6",
+  "version": "6.0.0",
+  "description": "IA Conversacional Inteligente para Vendas Online - LinkMágico Chatbot v6.0 - Nova Geração",
+  "main": "server_v6.js",
+  "scripts": {
+    "start": "node server_v6.js",
+    "dev": "nodemon server_v6.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "chatbot",
+    "ai",
+    "sales",
+    "conversational",
+    "automation",
+    "linkmagico",
+    "universal-scraping",
+    "deep-linking",
+    "advanced-ai"
+  ],
+  "author": "LinkMágico Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "4.18.2",
+    "cors": "2.8.5",
+    "helmet": "7.1.0",
+    "winston": "3.11.0",
+    "axios": "1.6.2",
+    "cheerio": "1.0.0-rc.12",
+    "dotenv": "16.3.1",
+    "puppeteer": "^21.6.1",
+    "playwright": "^1.40.1",
+    "cloudscraper": "^4.6.0",
+    "node-fetch": "^2.7.0",
+    "ua-parser-js": "^1.0.37",
+    "mobile-detect": "^1.4.5"
+  },
+  "devDependencies": {
+    "nodemon": "3.0.2"
+  },
+  "engines": {
+    "node": ">=18.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/porramano/Link-M-gico-v6.0.git"
+  },
+  "bugs": {
+    "url": "https://github.com/porramano/Link-M-gico-v6.0/issues"
+  },
+  "homepage": "https://github.com/porramano/Link-M-gico-v6.0#readme"
+}
+

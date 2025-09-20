@@ -1,0 +1,127 @@
+import os
+import json
+import openai
+from typing import Dict, Optional
+from datetime import datetime
+import logging
+
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class EnhancedAIConversationEngine:
+    """Versão aprimorada do motor de IA, com estilo conciso"""
+
+    def __init__(self):
+        self.client = openai.OpenAI(
+            api_key=os.getenv('OPENAI_API_KEY'),
+            base_url=os.getenv('OPENAI_API_BASE')
+        )
+        self.conversation_history = {}
+        self.system_personas = self._load_dynamic_prompts()
+
+    def _load_dynamic_prompts(self) -> Dict[str, str]:
+        return {
+            "concise_sales": """Você é um assistente de vendas profissional.
+            Suas respostas devem ter no máximo 2–3 frases, sempre diretas, objetivas, sem floreios ou marketing exagerado.
+            Use tom amigável e profissional, focando apenas em dados e benefícios concretos.""",
+
+            "analysis": """Você é especialista em analisar mensagens e deve retornar JSON válido, sem explicações extras."""
+        }
+
+    def analyze_user_intent(self, message: str, context: Dict) -> Dict[str, any]:
+        try:
+            analysis_prompt = f"""
+            Analise a mensagem do usuário e retorne em JSON:
+            - intent: greeting, question, objection, interest, ready_to_buy, price_inquiry, comparison, other
+            - sentiment: positive, negative, neutral
+            - urgency_level: low, medium, high
+            - buying_stage: awareness, consideration, decision
+            - emotional_state: excited, skeptical, confused, frustrated, curious
+            - key_concerns: [lista]
+            Mensagem: "{message}"
+            Contexto: {json.dumps(context.get('previous_messages', [])[-3:], ensure_ascii=False)}
+            """
+
+            response = self.client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[
+                    {"role": "system", "content": self.system_personas["analysis"]},
+                    {"role": "user", "content": analysis_prompt}
+                ],
+                temperature=0.3,
+                max_tokens=200
+            )
+
+            return json.loads(response.choices[0].message.content)
+
+        except Exception as e:
+            logger.error(f"Erro na análise de intenção: {e}")
+            return {
+                "intent": "other",
+                "sentiment": "neutral",
+                "urgency_level": "medium",
+                "buying_stage": "consideration",
+                "emotional_state": "curious",
+                "key_concerns": []
+            }
+
+    def generate_response(self, message: str, context: Dict, web_data: Optional[Dict] = None, custom_instructions: str = "") -> str:
+        try:
+            intent_analysis = self.analyze_user_intent(message, context)
+
+            system_message = self.system_personas["concise_sales"]
+
+            if custom_instructions and custom_instructions.strip():
+                system_message += f"\n\nInstruções adicionais: {custom_instructions.strip()}"
+
+            conversation_context = []
+            if context.get('previous_messages'):
+                conversation_context.append(f"Histórico recente: {json.dumps(context['previous_messages'][-5:], ensure_ascii=False)}")
+            if web_data:
+                conversation_context.append(f"Dados: {json.dumps(web_data, ensure_ascii=False)}")
+
+            full_context = "\n".join(conversation_context)
+
+            response = self.client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[
+                    {"role": "system", "content": f"{system_message}\n\nContexto:\n{full_context}"},
+                    {"role": "user", "content": message}
+                ],
+                temperature=0.3,
+                max_tokens=150,
+                presence_penalty=0.6,
+                frequency_penalty=0.4
+            )
+
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            logger.error(f"Erro na geração de resposta: {e}")
+            return "Houve um problema. Pode reformular sua pergunta?"
+
+    def update_conversation_history(self, session_id: str, user_message: str, bot_response: str, context: Dict):
+        if session_id not in self.conversation_history:
+            self.conversation_history[session_id] = []
+
+        self.conversation_history[session_id].append({
+            "timestamp": datetime.now().isoformat(),
+            "user_message": user_message,
+            "bot_response": bot_response,
+            "context": context
+        })
+
+        if len(self.conversation_history[session_id]) > 20:
+            self.conversation_history[session_id] = self.conversation_history[session_id][-20:]
+
+    def get_conversation_context(self, session_id: str) -> Dict:
+        history = self.conversation_history.get(session_id, [])
+        return {
+            "previous_messages": [
+                {"user": msg["user_message"], "bot": msg["bot_response"]}
+                for msg in history[-10:]
+            ],
+            "session_start": history[0]["timestamp"] if history else datetime.now().isoformat(),
+            "total_interactions": len(history)
+        }

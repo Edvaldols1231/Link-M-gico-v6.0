@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkMágico Chatbot v6.0 - IA Conversacional Inteligente para Vendas Online</title>
+    <meta name="description" content="Nova geração de chatbot com IA avançada, extração universal de dados e deep linking multiplataforma. Transforme suas páginas de vendas em conversas inteligentes.">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #667eea;
+            --primary-dark: #5a67d8;
+            --secondary: #764ba2;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --dark: #1f2937;
+            --light: #f8fafc;
+            --white: #ffffff;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gradient-primary: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--gradient-primary);
+            min-height: 100vh;
+            color: var(--gray-800);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: var(--shadow-sm);
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 2rem;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--gradient-primary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+        }
+        
+        .logo-text h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin: 0;
+        }
+        
+        .version-badge {
+            background: var(--gradient-success);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: var(--shadow-md);
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+        }
+        
+        .status-text {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--success);
+        }
+        
+        /* Main Container */
+        .main-container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem 2rem 2rem;
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 2rem;
+            min-height: calc(100vh - 140px);
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 2rem;
+            height: fit-content;
+            box-shadow: var(--shadow-xl);
+            position: sticky;
+            top: 120px;
+        }
+        
+        .panel-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .panel-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 0.5rem;
+        }
+        
+        .panel-subtitle {
+            color: var(--gray-600);
+            font-size: 0.9rem;
+        }
+        
+        .success-alert {
+            background: var(--gradient-success);
+            color: white;
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            text-align: center;
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .form-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        .form-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 0.9rem;
+        }
+        
+        .form-label i {
+            color: var(--primary);
+            width: 16px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--gray-200);
+            border-radius: 10px;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            background: white;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .form-textarea {
+            min-height: 80px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        
+        .input-hint {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            margin-top: 0.25rem;
+            font-style: italic;
+        }
+        
+        .btn {
+            padding: 0.875rem 1.25rem;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+        
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: var(--shadow-lg);
+            width: 100%;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.3);
+        }
+        
+        .social-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .social-btn {
+            padding: 0.6rem;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .social-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .social-btn i {
+            font-size: 1rem;
+        }
+        
+        .whatsapp { background: #25d366; }
+        .instagram { background: linear-gradient(135deg, #f09433, #dc2743); }
+        .facebook { background: #1877f2; }
+        .youtube { background: #ff0000; }
+        .tiktok { background: #000000; }
+        .twitter { background: #1da1f2; }
+        .kwai { background: #ff6600; }
+        .linkedin { background: #0077b5; }
+        .telegram { background: #0088cc; }
+        .messenger { background: #006aff; }
+        .prompt { background: #28a745; }
+        .analytics { background: #6c757d; }
+        
+        /* Dashboard */
+        .dashboard {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        
+        .dashboard-header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-xl);
+        }
+        
+        .dashboard-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 0.5rem;
+        }
+        
+        .dashboard-subtitle {
+            color: var(--gray-600);
+            font-size: 0.95rem;
+        }
+        
+        /* Analytics Cards */
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        
+        .analytics-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 1.25rem;
+            box-shadow: var(--shadow-lg);
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .analytics-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--gradient-primary);
+        }
+        
+        .analytics-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-xl);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+        
+        .card-title {
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .card-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--gradient-primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1rem;
+        }
+        
+        .card-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--gray-800);
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+        
+        .card-change {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--success);
+        }
+        
+        /* Chat Preview */
+        .chat-preview {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 400px;
+        }
+        
+        .chat-header {
+            padding: 1rem 1.25rem;
+            background: var(--gradient-primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .chat-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            background: var(--gray-50);
+        }
+        
+        .message {
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: flex-end;
+            gap: 0.5rem;
+        }
+        
+        .message.user {
+            justify-content: flex-end;
+            flex-direction: row-reverse;
+        }
+        
+        .message-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--gradient-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+        }
+        
+        .user .message-avatar {
+            background: var(--gradient-success);
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 0.6rem 0.8rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+        
+        .bot .message-content {
+            background: white;
+            color: var(--gray-800);
+            border: 1px solid var(--gray-200);
+        }
+        
+        .user .message-content {
+            background: var(--gradient-primary);
+            color: white;
+        }
+        
+        .chat-input {
+            padding: 1rem;
+            background: white;
+            border-top: 1px solid var(--gray-200);
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .chat-input-field {
+            flex: 1;
+            padding: 0.6rem 0.8rem;
+            border: 2px solid var(--gray-200);
+            border-radius: 16px;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+        
+        .chat-input-field:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .send-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 50%;
+            background: var(--gradient-primary);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        
+        .send-btn:hover {
+            transform: scale(1.1);
+            box-shadow: var(--shadow-md);
+        }
+        
+        /* Widget Code Generator */
+        .widget-generator {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow-xl);
+        }
+        
+        .widget-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .code-block {
+            background: var(--gray-900);
+            color: #10b981;
+            padding: 1rem;
+            border-radius: 10px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.8rem;
+            line-height: 1.4;
+            overflow-x: auto;
+            position: relative;
+            margin-top: 0.75rem;
+        }
+        
+        .copy-btn {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.4rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: all 0.2s ease;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Loading States */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 1.5rem;
+        }
+        
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--gray-200);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            margin: 0 auto 0.75rem;
+        }
+        
+        .spinner.active {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .typing-indicator {
+            display: none;
+            padding: 0.75rem 1.5rem;
+            color: var(--gray-600);
+            font-style: italic;
+        }
+        
+        /* Results */
+        .result {
+            display: none;
+        }
+        
+        .success-message {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: var(--success);
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .chatbot-link {
+            background: rgba(59, 130, 246, 0.1);
+            border: 2px solid rgba(59, 130, 246, 0.2);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin: 0.75rem 0;
+        }
+        
+        .chatbot-link a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        
+        .chatbot-link a:hover {
+            text-decoration: underline;
+        }
+        
+        .extracted-data {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-top: 0.75rem;
+        }
+        
+        .extracted-data p {
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+        
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .control-panel {
+                position: static;
+                order: 1;
+            }
+            
+            .dashboard {
+                order: 2;
+            }
+            
+            .analytics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .social-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .header-content {
+                padding: 1rem;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .main-container {
+                margin: 1rem auto;
+                padding: 0 1rem 1rem 1rem;
+            }
+            
+            .control-panel,
+            .dashboard-header,
+            .analytics-card,
+            .chat-preview,
+            .widget-generator {
+                padding: 1rem;
+            }
+            
+            .social-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .logo-text h1 {
+                font-size: 1.2rem;
+            }
+            
+            .dashboard-title {
+                font-size: 1.4rem;
+            }
+            
+            .chat-preview {
+                height: 300px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .social-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>LinkMágico v6.0</h1>
+                    <div class="version-badge">Nova Geração</div>
+                </div>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span class="status-text">Sistema Online</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Criar Chatbot</h2>
+                <p class="panel-subtitle">Configure seu assistente de vendas inteligente</p>
+            </div>
+            
+            <div class="success-alert">
+                Sua IA Conversacional está pronta para impulsionar suas vendas!
+            </div>
+            
+            <form id="chatbotForm">
+                <div class="form-section">
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-robot"></i>
+                            Nome do Assistente Virtual:
+                        </label>
+                        <input type="text" id="robotName" class="form-input" placeholder="@arsenal.secreto" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-link"></i>
+                            URL da Página:
+                        </label>
+                        <input type="url" id="salesUrl" class="form-input" placeholder="https://www.arsenalsecretodosceos.com.br/Nutrileads" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">
+                            <i class="fas fa-lightbulb"></i>
+                            Instruções Personalizadas (opcional):
+                        </label>
+                        <textarea id="customInstructions" class="form-input form-textarea" 
+                                placeholder="Ex.: Responda em até 3 frases, direto ao ponto, sem floreios. Use só dados visíveis na página." 
+                                rows="3"></textarea>
+                        <div class="input-hint">Dica: peça respostas curtas (2–3 frases), objetivas e sem repetições.</div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-rocket"></i>
+                    Ativar Chatbot Inteligente
+                </button>
+            </form>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Extraindo dados com IA...</p>
+            </div>
+            
+            <div class="typing-indicator" id="typingIndicator">
+                Processando dados da página...
+            </div>
+            
+            <div class="result" id="result">
+                <div class="success-message" id="successMessage">
+                    ✅ Chatbot v6.0 Ativado com Sucesso!<br>
+                    Sistema de IA configurado e pronto para vendas!
+                </div>
+                
+                <div class="chatbot-link">
+                    🔗 <strong>Link do Chatbot:</strong><br>
+                    <a href="#" id="chatbotLink" target="_blank">Clique aqui para acessar</a>
+                </div>
+                
+                <div class="extracted-data" id="extractedData">
+                    <h3>📊 Dados Extraídos:</h3>
+                    <p id="extractedSummary"></p>
+                </div>
+            </div>
+            
+            <div class="social-grid">
+                <button class="social-btn whatsapp" onclick="shareToSocial('whatsapp')">
+                    <i class="fab fa-whatsapp"></i>
+                    <span>WhatsApp</span>
+                </button>
+                <button class="social-btn instagram" onclick="shareToSocial('instagram')">
+                    <i class="fab fa-instagram"></i>
+                    <span>Instagram</span>
+                </button>
+                <button class="social-btn facebook" onclick="shareToSocial('facebook')">
+                    <i class="fab fa-facebook"></i>
+                    <span>Facebook</span>
+                </button>
+                <button class="social-btn youtube" onclick="shareToSocial('youtube')">
+                    <i class="fab fa-youtube"></i>
+                    <span>YouTube</span>
+                </button>
+                <button class="social-btn tiktok" onclick="shareToSocial('tiktok')">
+                    <i class="fab fa-tiktok"></i>
+                    <span>TikTok</span>
+                </button>
+                <button class="social-btn twitter" onclick="shareToSocial('twitter')">
+                    <i class="fab fa-twitter"></i>
+                    <span>Twitter</span>
+                </button>
+                <button class="social-btn kwai" onclick="shareToSocial('kwai')">
+                    <i class="fas fa-video"></i>
+                    <span>Kwai</span>
+                </button>
+                <button class="social-btn linkedin" onclick="shareToSocial('linkedin')">
+                    <i class="fab fa-linkedin"></i>
+                    <span>LinkedIn</span>
+                </button>
+                <button class="social-btn telegram" onclick="shareToSocial('telegram')">
+                    <i class="fab fa-telegram"></i>
+                    <span>Telegram</span>
+                </button>
+                <button class="social-btn messenger" onclick="shareToSocial('messenger')">
+                    <i class="fab fa-facebook-messenger"></i>
+                    <span>Messenger</span>
+                </button>
+                <button class="social-btn prompt" onclick="shareToSocial('prompt')">
+                    <i class="fas fa-brain"></i>
+                    <span>Prompt</span>
+                </button>
+                <button class="social-btn analytics" onclick="shareToSocial('analytics')">
+                    <i class="fas fa-chart-bar"></i>
+                    <span>Analytics</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div class="dashboard">
+            <!-- Dashboard Header -->
+            <div class="dashboard-header">
+                <h2 class="dashboard-title">Dashboard Analytics</h2>
+                <p class="dashboard-subtitle">Acompanhe o desempenho do seu chatbot em tempo real</p>
+            </div>
+            
+            <!-- Analytics Cards -->
+            <div class="analytics-grid">
+                <div class="analytics-card">
+                    <div class="card-header">
+                        <span class="card-title">Chatbots Ativos</span>
+                        <div class="card-icon">
+                            <i class="fas fa-robot"></i>
+                        </div>
+                    </div>
+                    <div class="card-value" id="activeBots">0</div>
+                    <div class="card-change">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>Criados hoje</span>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <div class="card-header">
+                        <span class="card-title">Conversas Hoje</span>
+                        <div class="card-icon">
+                            <i class="fas fa-comments"></i>
+                        </div>
+                    </div>
+                    <div class="card-value" id="todayChats">0</div>
+                    <div class="card-change">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>Mensagens enviadas</span>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <div class="card-header">
+                        <span class="card-title">Taxa de Sucesso</span>
+                        <div class="card-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                    </div>
+                    <div class="card-value" id="successRate">100<span style="font-size: 1rem;">%</span></div>
+                    <div class="card-change">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>Extração de dados</span>
+                    </div>
+                </div>
+                
+                <div class="analytics-card">
+                    <div class="card-header">
+                        <span class="card-title">Tempo Médio</span>
+                        <div class="card-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                    </div>
+                    <div class="card-value" id="avgTime">2<span style="font-size: 1rem;">s</span></div>
+                    <div class="card-change">
+                        <i class="fas fa-arrow-down"></i>
+                        <span>Tempo de resposta</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chat Preview -->
+            <div class="chat-preview">
+                <div class="chat-header">
+                    <h3 class="chat-title">🤖 Preview do Chatbot</h3>
+                </div>
+                
+                <div class="chat-messages" id="previewMessages">
+                    <div class="message bot">
+                        <div class="message-avatar">🤖</div>
+                        <div class="message-content">
+                            Olá! Sou seu assistente especializado. Como posso te ajudar hoje?
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chat-input">
+                    <div class="input-group">
+                        <input type="text" class="chat-input-field" placeholder="Digite sua pergunta..." id="previewInput">
+                        <button class="send-btn" onclick="sendPreviewMessage()">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Widget Generator -->
+            <div class="widget-generator">
+                <h3 class="widget-title">
+                    <i class="fas fa-code"></i>
+                    Widget Embed Code
+                </h3>
+                <p style="color: var(--gray-600); margin-bottom: 0.75rem; font-size: 0.85rem;">
+                    Cole este código em qualquer site para adicionar o chatbot flutuante:
+                </p>
+                
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyWidgetCode()">
+                        <i class="fas fa-copy"></i> Copiar
+                    </button>
+                    <pre id="widgetCode">&lt;!-- LinkMágico ChatBot Widget --&gt;
+&lt;script&gt;
+(function() {
+    var config = {
+        robotName: 'Seu Assistente',
+        salesUrl: 'https://sua-pagina.com',
+        instructions: 'Responda em até 3 frases',
+        position: 'bottom-right',
+        primaryColor: '#667eea',
+        apiBase: window.location.origin
+    };
+    var script = document.createElement('script');
+    script.src = window.location.origin + '/widget.js';
+    script.onload = function() {
+        window.LinkMagicoWidget.init(config);
+    };
+    document.head.appendChild(script);
+})();
+&lt;/script&gt;</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentChatbotUrl = '';
+        let extractedPageData = null;
+        let botCount = 0;
+        let chatCount = 0;
+        let startTime = Date.now();
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAnalytics();
+            
+            // Preview input enter key
+            const previewInput = document.getElementById('previewInput');
+            if (previewInput) {
+                previewInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        sendPreviewMessage();
+                    }
+                });
+            }
+        });
+
+        // Form submission with improved error handling
+        document.getElementById('chatbotForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const robotName = document.getElementById('robotName').value.trim();
+            const salesUrl = document.getElementById('salesUrl').value.trim();
+            const customInstructions = document.getElementById('customInstructions').value.trim() || '';
+            
+            if (!robotName || !salesUrl) {
+                alert('Por favor, preencha todos os campos obrigatórios.');
+                return;
+            }
+            
+            // Validate URL format
+            try {
+                new URL(salesUrl);
+            } catch (e) {
+                alert('Por favor, insira uma URL válida (ex: https://exemplo.com)');
+                return;
+            }
+            
+            // Show loading with animation
+            const loading = document.getElementById('loading');
+            const spinner = loading.querySelector('.spinner');
+            loading.style.display = 'block';
+            spinner.classList.add('active');
+            document.getElementById('typingIndicator').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            
+            try {
+                const response = await fetch("/extract", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        url: salesUrl,
+                        instructions: customInstructions
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const extractData = await response.json();
+                
+                if (!extractData.success && !extractData.data) {
+                    throw new Error(extractData.error || 'Erro ao extrair dados da página');
+                }
+                
+                extractedPageData = extractData.data || extractData;
+                
+                // Generate chatbot URL
+                const chatbotParams = new URLSearchParams({
+                    url: salesUrl,
+                    name: robotName,
+                    instructions: customInstructions
+                });
+                
+                currentChatbotUrl = `/chat.html?${chatbotParams.toString()}`;
+                
+                // Hide loading
+                loading.style.display = 'none';
+                spinner.classList.remove('active');
+                document.getElementById('typingIndicator').style.display = 'none';
+                
+                // Show result
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('successMessage').style.display = 'block';
+                document.getElementById('extractedSummary').innerHTML = `<strong>Resumo:</strong> ${extractedPageData.summary || extractedPageData.title || 'Dados extraídos com sucesso'}`;
+                document.getElementById('extractedData').style.display = 'block';
+                
+                // Configure chatbot link
+                document.getElementById('chatbotLink').href = currentChatbotUrl;
+                document.getElementById('chatbotLink').textContent = "Clique aqui para acessar seu chatbot";
+                
+                // Update analytics
+                botCount++;
+                updateAnalytics();
+                
+                // Update widget code
+                updateWidgetCode(robotName, salesUrl, customInstructions);
+                
+                // Open chatbot in new tab
+                window.open(currentChatbotUrl, "_blank");
+                
+            } catch (error) {
+                console.error('Erro ao criar chatbot:', error);
+                
+                loading.style.display = 'none';
+                spinner.classList.remove('active');
+                document.getElementById('typingIndicator').style.display = 'none';
+                
+                let errorMessage = 'Erro ao criar chatbot: ';
+                
+                if (error.message.includes('fetch')) {
+                    errorMessage += 'Problema de conexão. Verifique sua internet.';
+                } else if (error.message.includes('HTTP')) {
+                    errorMessage += 'Servidor indisponível. Tente novamente em alguns minutos.';
+                } else {
+                    errorMessage += error.message;
+                }
+                
+                alert(errorMessage);
+            }
+        });
+
+        function updateAnalytics() {
+            // Update real counters
+            document.getElementById('activeBots').textContent = botCount;
+            document.getElementById('todayChats').textContent = chatCount;
+            
+            // Calculate uptime
+            const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000);
+            document.getElementById('avgTime').innerHTML = uptimeSeconds < 60 ? 
+                `${uptimeSeconds}<span style="font-size: 1rem;">s</span>` : 
+                `${Math.floor(uptimeSeconds/60)}<span style="font-size: 1rem;">m</span>`;
+        }
+
+        function sendPreviewMessage() {
+            const input = document.getElementById('previewInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            const messagesContainer = document.getElementById('previewMessages');
+            
+            // Add user message
+            const userMsg = document.createElement('div');
+            userMsg.className = 'message user';
+            userMsg.innerHTML = `
+                <div class="message-avatar">👤</div>
+                <div class="message-content">${message}</div>
+            `;
+            messagesContainer.appendChild(userMsg);
+            
+            input.value = '';
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Simulate bot response
+            setTimeout(() => {
+                const responses = [
+                    'Este é um preview do chatbot. Para funcionalidade completa, configure com uma URL válida.',
+                    'Obrigado pela pergunta! Após configurar seu chatbot, ele responderá baseado no conteúdo da sua página.',
+                    'Para testar completamente, preencha o formulário e crie seu chatbot personalizado.',
+                    'O chatbot funcionará perfeitamente após a configuração com sua página de vendas.'
+                ];
+                
+                const botMsg = document.createElement('div');
+                botMsg.className = 'message bot';
+                botMsg.innerHTML = `
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">${responses[Math.floor(Math.random() * responses.length)]}</div>
+                `;
+                messagesContainer.appendChild(botMsg);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                
+                chatCount++;
+                updateAnalytics();
+            }, 1000);
+        }
+
+        function updateWidgetCode(robotName, salesUrl, instructions) {
+            const code = `&lt;!-- LinkMágico ChatBot Widget --&gt;
+&lt;script&gt;
+(function() {
+    var config = {
+        robotName: '${robotName.replace(/'/g, "\\'")}',
+        salesUrl: '${salesUrl}',
+        instructions: '${instructions.replace(/'/g, "\\'")}',
+        position: 'bottom-right',
+        primaryColor: '#667eea',
+        apiBase: '${window.location.origin}'
+    };
+    var script = document.createElement('script');
+    script.src = '${window.location.origin}/widget.js';
+    script.onload = function() {
+        window.LinkMagicoWidget.init(config);
+    };
+    document.head.appendChild(script);
+})();
+&lt;/script&gt;`;
+            
+            document.getElementById('widgetCode').innerHTML = code;
+        }
+
+        function copyWidgetCode() {
+            const code = document.getElementById('widgetCode').textContent;
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(code).then(() => {
+                    showCopySuccess();
+                }).catch(err => {
+                    fallbackCopy(code);
+                });
+            } else {
+                fallbackCopy(code);
+            }
+        }
+        
+        function fallbackCopy(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showCopySuccess();
+            } catch (err) {
+                alert('Não foi possível copiar automaticamente. Por favor, copie o código manualmente.');
+            }
+            document.body.removeChild(textArea);
+        }
+        
+        function showCopySuccess() {
+            const btn = document.querySelector('.copy-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i> Copiado!';
+            btn.style.background = 'rgba(16, 185, 129, 0.2)';
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.style.background = 'rgba(255, 255, 255, 0.1)';
+            }, 2000);
+        }
+        
+        function shareToSocial(platform) {
+            if (!currentChatbotUrl) {
+                alert('Por favor, crie um chatbot primeiro!');
+                return;
+            }
+            
+            const fullUrl = window.location.origin + currentChatbotUrl;
+            const text = `Confira meu chatbot inteligente: ${fullUrl}`;
+            
+            const urls = {
+                whatsapp: `https://wa.me/?text=${encodeURIComponent(text)}`,
+                facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullUrl)}`,
+                twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,
+                linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(fullUrl)}`,
+                telegram: `https://t.me/share/url?url=${encodeURIComponent(fullUrl)}&text=${encodeURIComponent(text)}`,
+                instagram: `https://www.instagram.com/`,
+                youtube: `https://www.youtube.com/`,
+                tiktok: `https://www.tiktok.com/`,
+                kwai: `https://www.kwai.com/`,
+                messenger: `https://www.messenger.com/`,
+                prompt: fullUrl,
+                analytics: fullUrl
+            };
+            
+            if (urls[platform]) {
+                try {
+                    window.open(urls[platform], '_blank', 'noopener,noreferrer');
+                } catch (error) {
+                    // Fallback for popup blockers
+                    window.location.href = urls[platform];
+                }
+            } else {
+                alert('Plataforma não suportada ainda.');
+            }
+        }
+
+        // Update analytics every 30 seconds
+        setInterval(updateAnalytics, 30000);
+        
+        // Handle page visibility
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                updateAnalytics();
+            }
+        });
+    </script>
+</body>
+</html>
