@@ -1,7 +1,5 @@
-// LinkMágico Chatbot - Consolidated server (v6.0 + v7.0 compat)
-// Cleaned and prepared for Render deployment.
-// Environment: create a .env with OPENAI_API_KEY, GROQ_API_KEY, etc. as needed.
-
+// LinkMágico Chatbot v6.0 - Combined & Fixed Server
+// Single-file server (index.js) ready for Render
 require('dotenv').config();
 
 const express = require('express');
@@ -14,355 +12,1202 @@ const path = require('path');
 const fs = require('fs');
 const bodyParser = require('body-parser');
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
 
-// Optional dependencies - graceful fallback
+// Optional dependencies with graceful fallback
 let puppeteer = null;
-try { puppeteer = require('puppeteer'); console.log('✅ Puppeteer available'); } catch (e) { /* optional */ }
+try {
+    puppeteer = require('puppeteer');
+    console.log('✅ Puppeteer loaded - Dynamic rendering available');
+} catch (e) {
+    console.log('⚠️  Puppeteer not installed - Using basic extraction only');
+}
+
 let Tesseract = null;
-try { Tesseract = require('tesseract.js'); console.log('✅ Tesseract available'); } catch (e) { /* optional */ }
+try {
+    Tesseract = require('tesseract.js');
+    console.log('✅ Tesseract loaded - OCR available');
+} catch (e) {
+    console.log('⚠️  Tesseract not installed - OCR unavailable');
+}
 
 const app = express();
 
-// Logger
+// ===== Enhanced Logger =====
 const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.errors({ stack: true }),
-    winston.format.json()
-  ),
-  transports: [ new winston.transports.Console({ format: winston.format.combine(winston.format.colorize(), winston.format.simple()) }) ]
+    level: process.env.LOG_LEVEL || 'info',
+    format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.errors({ stack: true }),
+        winston.format.json()
+    ),
+    transports: [
+        new winston.transports.Console({
+            format: winston.format.combine(
+                winston.format.colorize(),
+                winston.format.simple()
+            )
+        })
+    ]
 });
 
-// Rate limiters
-const dashboardDemoLimit = rateLimit({ windowMs: 10*60*1000, max: 50, message: { error: 'Rate limit dashboard demo excedido' } });
-const widgetEmbedLimit = rateLimit({ windowMs: 5*60*1000, max: 200, message: { error: 'Rate limit widget embed excedido' } });
-const publicApiLimit = rateLimit({ windowMs: 15*60*1000, max: 100, message: { error: 'Rate limit API pública excedido' } });
-
-// Helmet with permissive-ish CSP to allow inline JS used by demo/widget UIs
+// ===== Middleware =====
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com", "https://fonts.googleapis.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https://api.groq.com", "https://api.openai.com", "https://openrouter.ai", "https://api.openrouter.ai"]
-    }
-  },
-  crossOriginEmbedderPolicy: false
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false
 }));
 
-app.use(cors({ origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*', credentials: true, maxAge: 86400 }));
+app.use(cors({
+    origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
+    credentials: true,
+    maxAge: 86400
+}));
+
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(bodyParser.json({ limit: '5mb' }));
+
 app.use(morgan('combined'));
 
-// Serve public
+// Serve static assets
 const publicDir = path.join(__dirname, 'public');
-if (fs.existsSync(publicDir)) app.use(express.static(publicDir, { maxAge: '1d', etag: true, lastModified: true }));
+if (fs.existsSync(publicDir)) {
+    app.use(express.static(publicDir, {
+        maxAge: '1d',
+        etag: true,
+        lastModified: true
+    }));
+}
 
-// Analytics & cache
-const analytics = { totalRequests:0, chatRequests:0, extractRequests:0, errors:0, activeChats:new Set(), startTime:Date.now(), responseTimeHistory:[], successfulExtractions:0, failedExtractions:0 };
-app.use((req,res,next)=>{ const start=Date.now(); analytics.totalRequests++; res.on('finish',()=>{ const time=Date.now()-start; analytics.responseTimeHistory.push(time); if(analytics.responseTimeHistory.length>100) analytics.responseTimeHistory.shift(); if(res.statusCode>=400) analytics.errors++; }); next(); });
+// ===== Analytics & Cache =====
+const analytics = {
+    totalRequests: 0,
+    chatRequests: 0,
+    extractRequests: 0,
+    errors: 0,
+    activeChats: new Set(),
+    startTime: Date.now(),
+    responseTimeHistory: [],
+    successfulExtractions: 0,
+    failedExtractions: 0
+};
+
+app.use((req, res, next) => {
+    const start = Date.now();
+    analytics.totalRequests++;
+
+    res.on('finish', () => {
+        const responseTime = Date.now() - start;
+        analytics.responseTimeHistory.push(responseTime);
+        if (analytics.responseTimeHistory.length > 100) analytics.responseTimeHistory.shift();
+        if (res.statusCode >= 400) analytics.errors++;
+    });
+
+    next();
+});
 
 const dataCache = new Map();
-const CACHE_TTL = 30 * 60 * 1000;
-function setCacheData(k,d){ dataCache.set(k,{data:d,timestamp:Date.now()}); }
-function getCacheData(k){ const c=dataCache.get(k); if(c && (Date.now()-c.timestamp)<CACHE_TTL) return c.data; dataCache.delete(k); return null; }
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
-// Utilities
-function normalizeText(text){ return (text||'').replace(/\s+/g,' ').trim(); }
-function uniqueLines(text){ if(!text) return ''; const seen=new Set(); return text.split('\n').map(l=>l.trim()).filter(Boolean).filter(l=>{ if(seen.has(l)) return false; seen.add(l); return true; }).join('\n'); }
-function clampSentences(text,maxSentences=2){ if(!text) return ''; const s=normalizeText(text).split(/(?<=[.!?])\s+/); return s.slice(0,maxSentences).join(' '); }
-function extractPrices(text){ if(!text) return []; const regex=/(R\\$\\s?\\d{1,3}(?:\\.\\d{3})*,\\d{2}|USD\\s*\\d+(?:[.,]\\d+)?|\\$\\s*\\d+(?:[.,]\\d+)?)/gi; const m=[]; let r; while((r=regex.exec(text))!==null){ m.push(r[0]); if(m.length>=10) break; } return Array.from(new Set(m)); }
-function extractBonuses(text){ if(!text) return []; const bonusKeywords=/(bônus|bonus|brinde|extra|grátis|template|planilha|checklist|e-book|ebook)/gi; const lines=String(text).split(/\\r?\\n/).map(l=>l.trim()).filter(Boolean); const bonuses=[]; for(const line of lines){ if(bonusKeywords.test(line) && line.length>10 && line.length<200){ bonuses.push(line); if(bonuses.length>=5) break; } } return Array.from(new Set(bonuses)); }
-
-// Content extraction helpers
-function extractCleanTextFromHTML(html){
-  try{
-    const $ = cheerio.load(html||'');
-    $('script, style, noscript, iframe, nav, footer, aside').remove();
-    const textBlocks=[];
-    const selectors=['h1','h2','h3','p','li','span','div'];
-    for(const sel of selectors){ $(sel).each((i,el)=>{ const t=normalizeText($(el).text()||''); if(t && t.length>15 && t.length<1000) textBlocks.push(t); }); }
-    const metaDesc = $('meta[name="description"]').attr('content') || $('meta[property="og:description"]').attr('content') || '';
-    if(metaDesc && metaDesc.trim().length>20) textBlocks.unshift(normalizeText(metaDesc.trim()));
-    return [...new Set(textBlocks.map(b=>b.trim()).filter(Boolean))].join('\\n');
-  }catch(err){ logger.warn('extractCleanTextFromHTML error', err.message || err); return ''; }
+function setCacheData(key, data) {
+    dataCache.set(key, { data, timestamp: Date.now() });
 }
 
-// Page extraction (Axios + Cheerio) - basic but effective
-async function extractPageData(url){
-  const start = Date.now();
-  try{
-    if(!url) throw new Error('URL is required');
-    const cacheKey = url;
-    const cached = getCacheData(cacheKey);
-    if(cached){ logger.info('Cache hit for '+url); return cached; }
-    logger.info('Starting extraction for: '+url);
-    const extracted = { title:'', description:'', price:'', benefits:[], testimonials:[], cta:'', summary:'', cleanText:'', imagesText:[], url, extractionTime:0, method:'unknown', bonuses_detected:[], price_detected:[] };
-    let html='';
-    try{
-      const response = await axios.get(url, { headers: { 'User-Agent':'Mozilla/5.0', 'Accept-Language':'pt-BR,pt;q=0.9,en;q=0.8' }, timeout:10000, maxRedirects:3, validateStatus: s => s>=200 && s<400 });
-      html = response.data || '';
-      const finalUrl = response.request?.res?.responseUrl || url;
-      if(finalUrl && finalUrl!==url) extracted.url = finalUrl;
-      extracted.method = 'axios-cheerio';
-      logger.info('Axios extraction success length='+String(html.length));
-    }catch(e){ logger.warn('Axios extraction failed: ' + (e.message||e)); }
-
-    if(html && html.length>100){
-      try{
-        const $ = cheerio.load(html);
-        $('script, style, noscript, iframe').remove();
-        // title
-        const titleSelectors=['h1','meta[property="og:title"]','meta[name="twitter:title"]','title'];
-        for(const sel of titleSelectors){
-          const el = $(sel).first();
-          const title = (el.attr && (el.attr('content')||el.text) ? (el.attr('content') || el.text()) : el.text ? el.text() : '').toString().trim();
-          if(title && title.length>5 && title.length<200){ extracted.title = title; break; }
-        }
-        // description
-        const descSelectors=['meta[name="description"]','meta[property="og:description"]','.description','article p','main p'];
-        for(const sel of descSelectors){
-          const el = $(sel).first();
-          const desc = (el.attr && (el.attr('content')||el.text) ? (el.attr('content') || el.text()) : el.text ? el.text() : '').toString().trim();
-          if(desc && desc.length>50 && desc.length<1000){ extracted.description = desc; break; }
-        }
-        extracted.cleanText = extractCleanTextFromHTML(html);
-        const bodyText = $('body').text() || '';
-        const priceMatches = bodyText.match(/(R\\$\\s*\\d{1,3}(?:[.,]\\d{3})*(?:[.,]\\d{2})?|\\$\\s*\\d+(?:[.,]\\d+)?|USD\\s*\\d+)/gi);
-        if(priceMatches && priceMatches.length){ extracted.price = priceMatches[0]; extracted.price_detected = priceMatches.slice(0,5); }
-        const summaryText = bodyText.replace(/\\s+/g,' ').trim();
-        const sentences = summaryText.split(/[.!?]+/).map(s=>s.trim()).filter(Boolean);
-        extracted.summary = sentences.slice(0,3).join('. ').substring(0,400) + (sentences.length>3? '...' : '');
-        extracted.bonuses_detected = extractBonuses(bodyText);
-        extracted.price_detected = extractPrices(bodyText);
-        analytics.successfulExtractions++;
-        logger.info('Cheerio extraction completed for '+url);
-      }catch(e){ logger.warn('Cheerio parsing failed: '+(e.message||e)); analytics.failedExtractions++; }
+function getCacheData(key) {
+    const cached = dataCache.get(key);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+        return cached.data;
     }
-
-    try{
-      if(extracted.cleanText) extracted.cleanText = uniqueLines(extracted.cleanText);
-      if(!extracted.title && extracted.cleanText){
-        const firstLine = extracted.cleanText.split('\\n').find(l=>l && l.length>10 && l.length<150);
-        if(firstLine) extracted.title = firstLine.slice(0,150);
-      }
-      if(!extracted.summary && extracted.cleanText){
-        const sents = extracted.cleanText.split(/(?<=[.!?])\\s+/).filter(Boolean);
-        extracted.summary = sents.slice(0,3).join('. ').slice(0,400) + (sents.length>3 ? '...' : '');
-      }
-    }catch(e){ logger.warn('Final processing failed: '+(e.message||e)); }
-
-    extracted.extractionTime = Date.now() - start;
-    setCacheData(cacheKey, extracted);
-    logger.info(`Extraction completed for ${url} in ${extracted.extractionTime}ms using ${extracted.method}`);
-    return extracted;
-  }catch(err){ analytics.failedExtractions++; logger.error('Page extraction failed: '+(err.message||err)); return { title:'', description:'', price:'', benefits:[], testimonials:[], cta:'', summary:'', cleanText:'', imagesText:[], url: url||'', extractionTime: Date.now()-start, method:'failed', error: err.message || String(err), bonuses_detected: [], price_detected: [] }; }
+    dataCache.delete(key);
+    return null;
 }
 
-// LLM Integration helpers
-async function callGroq(messages, temperature=0.4, maxTokens=300){
-  if(!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY missing');
-  const payload = { model: process.env.GROQ_MODEL || 'llama-3.1-70b-versatile', messages, temperature, max_tokens: maxTokens };
-  const url = process.env.GROQ_API_BASE || 'https://api.groq.com/openai/v1/chat/completions';
-  const headers = { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' };
-  const resp = await axios.post(url, payload, { headers, timeout:15000 });
-  if(!(resp && resp.status>=200 && resp.status<300)) throw new Error('GROQ API failed status='+resp?.status);
-  if(resp.data?.choices?.[0]?.message?.content) return resp.data.choices[0].message.content;
-  throw new Error('Invalid GROQ response');
+// ===== Utility functions =====
+function normalizeText(text) {
+    return (text || '').replace(/\s+/g, ' ').trim();
 }
 
-async function callOpenAI(messages, temperature=0.2, maxTokens=300){
-  if(!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY missing');
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-  const url = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1/chat/completions';
-  const payload = { model, messages, temperature, max_tokens: maxTokens };
-  const headers = { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' };
-  const resp = await axios.post(url, payload, { headers, timeout:15000 });
-  if(!(resp && resp.status>=200 && resp.status<300)) throw new Error('OpenAI API failed status='+resp?.status);
-  if(resp.data?.choices?.[0]?.message?.content) return resp.data.choices[0].message.content;
-  throw new Error('Invalid OpenAI response');
+function uniqueLines(text) {
+    if (!text) return '';
+    const seen = new Set();
+    return text.split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .filter(line => {
+            if (seen.has(line)) return false;
+            seen.add(line);
+            return true;
+        })
+        .join('\n');
 }
 
-// Local response generator and orchestration
+function clampSentences(text, maxSentences = 2) {
+    if (!text) return '';
+    const sentences = normalizeText(text).split(/(?<=[.!?])\s+/);
+    return sentences.slice(0, maxSentences).join(' ');
+}
+
+function shortenSentence(sentence, maxWords = 16) {
+    if (!sentence) return '';
+    const words = sentence.split(/\s+/);
+    return words.length <= maxWords ? sentence : words.slice(0, maxWords).join(' ') + '...';
+}
+
+function extractPrices(text) {
+    if (!text) return [];
+    const regex = /(R\$\s?\d{1,3}(?:\.\d{3})*,\d{2}|USD\s*\d+(?:[.,]\d+)?|\$\s*\d+(?:[.,]\d+)?)/gi;
+    const matches = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        matches.push(match[0]);
+        if (matches.length >= 10) break;
+    }
+    return Array.from(new Set(matches));
+}
+
+function extractBonuses(text) {
+    if (!text) return [];
+    const bonusKeywords = /(bônus|bonus|brinde|extra|grátis|template|planilha|checklist|e-book|ebook)/gi;
+    const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const bonuses = [];
+
+    for (const line of lines) {
+        if (bonusKeywords.test(line) && line.length > 10 && line.length < 200) {
+            bonuses.push(line);
+            if (bonuses.length >= 5) break;
+        }
+    }
+    return Array.from(new Set(bonuses));
+}
+
+// ===== Hide price helper =====
+// Removes price-related fields from objects that will be sent to the frontend/UI
+function hidePriceFields(data) {
+    try {
+        if (!data || typeof data !== 'object') return;
+        if (data.price) {
+            // Keep a hidden copy if you want to inspect later, and remove visible price
+            data._hidden_price = data.price;
+            delete data.price;
+        }
+        if (data.price_detected && Array.isArray(data.price_detected) && data.price_detected.length) {
+            data._hidden_price_detected = data.price_detected;
+            data.price_detected = [];
+        }
+    } catch (e) {
+        // silent
+    }
+}
+
+// ===== Content extraction =====
+function extractCleanTextFromHTML(html) {
+    try {
+        const $ = cheerio.load(html || '');
+        $('script, style, noscript, iframe, nav, footer, aside').remove();
+
+        const textBlocks = [];
+        const selectors = ['h1', 'h2', 'h3', 'p', 'li', 'span', 'div'];
+
+        for (const selector of selectors) {
+            $(selector).each((i, element) => {
+                const text = normalizeText($(element).text() || '');
+                if (text && text.length > 15 && text.length < 1000) {
+                    textBlocks.push(text);
+                }
+            });
+        }
+
+        const metaDesc = $('meta[name="description"]').attr('content') ||
+            $('meta[property="og:description"]').attr('content') || '';
+        if (metaDesc && metaDesc.trim().length > 20) {
+            textBlocks.unshift(normalizeText(metaDesc.trim()));
+        }
+
+        const uniqueBlocks = [...new Set(textBlocks.map(b => b.trim()).filter(Boolean))];
+        return uniqueBlocks.join('\n');
+    } catch (error) {
+        logger.warn('extractCleanTextFromHTML error:', error.message || error);
+        return '';
+    }
+}
+
+// ===== Page extraction =====
+async function extractPageData(url) {
+    const startTime = Date.now();
+    try {
+        if (!url) throw new Error('URL is required');
+
+        const cacheKey = url;
+        const cached = getCacheData(cacheKey);
+        if (cached) {
+            logger.info(`Cache hit for ${url}`);
+            return cached;
+        }
+        logger.info(`Starting extraction for: ${url}`);
+
+        const extractedData = {
+            title: '',
+            description: '',
+            price: '',
+            benefits: [],
+            testimonials: [],
+            cta: '',
+            summary: '',
+            cleanText: '',
+            imagesText: [],
+            url: url,
+            extractionTime: 0,
+            method: 'unknown',
+            bonuses_detected: [],
+            price_detected: []
+        };
+
+        let html = '';
+        try {
+            logger.info('Attempting Axios + Cheerio extraction...');
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                    'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8'
+                },
+                timeout: 10000,
+                maxRedirects: 3,
+                validateStatus: status => status >= 200 && status < 400
+            });
+            html = response.data || '';
+            const finalUrl = response.request?.res?.responseUrl || url;
+            if (finalUrl && finalUrl !== url) extractedData.url = finalUrl;
+            extractedData.method = 'axios-cheerio';
+            logger.info(`Axios extraction successful, HTML length: ${String(html).length}`);
+        } catch (axiosError) {
+            logger.warn(`Axios extraction failed for ${url}: ${axiosError.message || axiosError}`);
+        }
+
+        if (html && html.length > 100) {
+            try {
+                const $ = cheerio.load(html);
+                $('script, style, noscript, iframe').remove();
+
+                // Title
+                const titleSelectors = ['h1', 'meta[property="og:title"]', 'meta[name="twitter:title"]', 'title'];
+                for (const selector of titleSelectors) {
+                    const el = $(selector).first();
+                    const title = (el.attr && (el.attr('content') || el.text) ? (el.attr('content') || el.text()) : el.text ? el.text() : '').toString().trim();
+                    if (title && title.length > 5 && title.length < 200) {
+                        extractedData.title = title;
+                        break;
+                    }
+                }
+
+                // Description
+                const descSelectors = ['meta[name="description"]', 'meta[property="og:description"]', '.description', 'article p', 'main p'];
+                for (const selector of descSelectors) {
+                    const el = $(selector).first();
+                    const desc = (el.attr && (el.attr('content') || el.text) ? (el.attr('content') || el.text()) : el.text ? el.text() : '').toString().trim();
+                    if (desc && desc.length > 50 && desc.length < 1000) {
+                        extractedData.description = desc;
+                        break;
+                    }
+                }
+
+                extractedData.cleanText = extractCleanTextFromHTML(html);
+
+                const bodyText = $('body').text() || '';
+                const priceMatches = bodyText.match(/(R\$\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?|\$\s*\d+(?:[.,]\d+)?|USD\s*\d+)/gi);
+                if (priceMatches && priceMatches.length) {
+                    extractedData.price = priceMatches[0];
+                    extractedData.price_detected = priceMatches.slice(0, 5);
+                }
+
+                const summaryText = bodyText.replace(/\s+/g, ' ').trim();
+                const sentences = summaryText.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
+                extractedData.summary = sentences.slice(0, 3).join('. ').substring(0, 400) + (sentences.length > 3 ? '...' : '');
+
+                extractedData.bonuses_detected = extractBonuses(bodyText);
+                extractedData.price_detected = extractPrices(bodyText);
+
+                logger.info(`Cheerio extraction completed for ${url}`);
+                analytics.successfulExtractions++;
+            } catch (cheerioError) {
+                logger.warn(`Cheerio parsing failed: ${cheerioError.message || cheerioError}`);
+                analytics.failedExtractions++;
+            }
+        }
+
+        // Puppeteer fallback
+        const minAcceptableLength = 200;
+        if ((!extractedData.cleanText || extractedData.cleanText.length < minAcceptableLength) && puppeteer) {
+            logger.info('Trying Puppeteer for dynamic rendering...');
+            let browser = null;
+            try {
+                browser = await puppeteer.launch({
+                    headless: true,
+                    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+                    defaultViewport: { width: 1200, height: 800 },
+                    timeout: 20000
+                });
+                const page = await browser.newPage();
+                await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+                await page.setRequestInterception(true);
+                page.on('request', (req) => {
+                    const rt = req.resourceType();
+                    if (['stylesheet', 'font', 'image', 'media'].includes(rt)) req.abort();
+                    else req.continue();
+                });
+
+                try {
+                    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+                } catch (gotoErr) {
+                    logger.warn('Puppeteer goto failed:', gotoErr.message || gotoErr);
+                }
+
+                // quick scroll
+                try {
+                    await page.evaluate(async () => {
+                        await new Promise((resolve) => {
+                            let total = 0;
+                            const dist = 300;
+                            const timer = setInterval(() => {
+                                window.scrollBy(0, dist);
+                                total += dist;
+                                if (total >= document.body.scrollHeight || total > 3000) {
+                                    clearInterval(timer);
+                                    resolve();
+                                }
+                            }, 100);
+                        });
+                    });
+                    await page.waitForTimeout(500);
+                } catch (scrollErr) {
+                    logger.warn('Puppeteer scroll failed:', scrollErr.message || scrollErr);
+                }
+
+                const puppeteerData = await page.evaluate(() => {
+                    const clone = document.cloneNode(true);
+                    const removeEls = clone.querySelectorAll('script, style, noscript, iframe');
+                    removeEls.forEach(e => e.remove());
+                    return {
+                        bodyText: clone.body ? clone.body.innerText : '',
+                        title: document.title || '',
+                        metaDescription: document.querySelector('meta[name=\"description\"]')?.content || ''
+                    };
+                });
+
+                const cleanedText = normalizeText(puppeteerData.bodyText || '').replace(/\s{2,}/g, ' ');
+                const lines = cleanedText.split('\n').map(l => l.trim()).filter(Boolean);
+                const uniq = [...new Set(lines)];
+                const finalText = uniq.join('\n');
+
+                if (finalText && finalText.length > (extractedData.cleanText || '').length) {
+                    extractedData.cleanText = finalText;
+                    extractedData.method = 'puppeteer';
+                    if (!extractedData.title && puppeteerData.title) extractedData.title = puppeteerData.title.slice(0, 200);
+                    if (!extractedData.description && puppeteerData.metaDescription) extractedData.description = puppeteerData.metaDescription.slice(0, 500);
+                    const sents = finalText.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
+                    if (!extractedData.summary && sents.length) extractedData.summary = sents.slice(0, 3).join('. ').substring(0, 400) + (sents.length > 3 ? '...' : '');
+                    const priceRegex = /(R\$\s*\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?|\$\s*\d+(?:[.,]\d+)?|USD\s*\d+)/gi;
+                    const priceMatches = finalText.match(priceRegex);
+                    if (priceMatches && priceMatches.length && !extractedData.price) {
+                        extractedData.price = priceMatches[0];
+                        extractedData.price_detected = priceMatches.slice(0, 5);
+                    }
+                    extractedData.bonuses_detected = extractBonuses(finalText);
+                    analytics.successfulExtractions++;
+                }
+
+            } catch (puppeteerErr) {
+                logger.warn('Puppeteer extraction failed:', puppeteerErr.message || puppeteerErr);
+                analytics.failedExtractions++;
+            } finally {
+                try { if (browser) await browser.close(); } catch (e) {}
+            }
+        }
+
+        // Final processing
+        try {
+            if (extractedData.cleanText) extractedData.cleanText = uniqueLines(extractedData.cleanText);
+            if (!extractedData.title && extractedData.cleanText) {
+                const firstLine = extractedData.cleanText.split('\n').find(l => l && l.length > 10 && l.length < 150);
+                if (firstLine) extractedData.title = firstLine.slice(0, 150);
+            }
+            if (!extractedData.summary && extractedData.cleanText) {
+                const sents = extractedData.cleanText.split(/(?<=[.!?])\s+/).filter(Boolean);
+                extractedData.summary = sents.slice(0, 3).join('. ').slice(0, 400) + (sents.length > 3 ? '...' : '');
+            }
+        } catch (procErr) {
+            logger.warn('Final processing failed:', procErr.message || procErr);
+        }
+
+        extractedData.extractionTime = Date.now() - startTime;
+        setCacheData(cacheKey, extractedData);
+        logger.info(`Extraction completed for ${url} in ${extractedData.extractionTime}ms using ${extractedData.method}`);
+        return extractedData;
+
+    } catch (error) {
+        analytics.failedExtractions++;
+        logger.error(`Page extraction failed for ${url}:`, error.message || error);
+        return {
+            title: '',
+            description: '',
+            price: '',
+            benefits: [],
+            testimonials: [],
+            cta: '',
+            summary: '',
+            cleanText: '',
+            imagesText: [],
+            url: url || '',
+            extractionTime: Date.now() - startTime,
+            method: 'failed',
+            error: error.message || String(error),
+            bonuses_detected: [],
+            price_detected: []
+        };
+    }
+}
+
+// ===== LLM Integration =====
+async function callGroq(messages, temperature = 0.4, maxTokens = 300) {
+    if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY missing');
+
+    const payload = {
+        model: process.env.GROQ_MODEL || 'llama-3.1-70b-versatile',
+        messages,
+        temperature,
+        max_tokens: maxTokens
+    };
+
+    const url = process.env.GROQ_API_BASE || 'https://api.groq.com/openai/v1/chat/completions';
+    const headers = { 'Authorization': `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' };
+    const response = await axios.post(url, payload, { headers, timeout: 15000 });
+    if (!(response && response.status >= 200 && response.status < 300)) throw new Error(`GROQ API failed with status ${response?.status}`);
+    if (response.data?.choices?.[0]?.message?.content) return response.data.choices[0].message.content;
+    throw new Error('Invalid GROQ API response format');
+}
+
+async function callOpenAI(messages, temperature = 0.2, maxTokens = 300) {
+    if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY missing');
+
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const url = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1/chat/completions';
+    const payload = { model, messages, temperature, max_tokens: maxTokens };
+    const headers = { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' };
+    const response = await axios.post(url, payload, { headers, timeout: 15000 });
+    if (!(response && response.status >= 200 && response.status < 300)) throw new Error(`OpenAI API failed with status ${response?.status}`);
+    if (response.data?.choices?.[0]?.message?.content) return response.data.choices[0].message.content;
+    throw new Error('Invalid OpenAI API response format');
+}
+
+// ===== Answer generation =====
 const NOT_FOUND_MSG = "Não encontrei essa informação específica na página. Posso te ajudar com outras dúvidas ou enviar o link direto?";
 
-function shouldActivateSalesMode(instructions=''){ if(!instructions) return false; const text=String(instructions).toLowerCase(); return /sales_mode:on|consultivo|vendas|venda|cta|sempre.*link|finalize.*cta/i.test(text); }
-
-function generateLocalResponse(userMessage, pageData={}, instructions=''){
-  const q = String(userMessage||'').toLowerCase();
-  const salesMode = shouldActivateSalesMode(instructions);
-  if(/preço|valor|quanto custa/.test(q)){
-    if(pageData.price) return salesMode ? `O preço é ${pageData.price}. Quer garantir sua vaga agora?` : `Preço: ${pageData.price}`;
-    return 'Preço não informado na página.';
-  }
-  if(/como funciona|funcionamento/.test(q)){
-    const summary = pageData.summary || pageData.description;
-    if(summary){ const shortSummary = clampSentences(summary,2); return salesMode ? `${shortSummary} Quer saber mais detalhes?` : shortSummary; }
-  }
-  if(/bônus|bonus/.test(q)){
-    if(pageData.bonuses_detected && pageData.bonuses_detected.length>0){ const bonuses = pageData.bonuses_detected.slice(0,2).join(', '); return salesMode ? `Inclui: ${bonuses}. Quer garantir todos os bônus?` : `Bônus: ${bonuses}`; }
-    return 'Informações sobre bônus não encontradas.';
-  }
-  if(pageData.summary) { const summary = clampSentences(pageData.summary,2); return salesMode ? `${summary} Posso te ajudar com mais alguma dúvida?` : summary; }
-  return NOT_FOUND_MSG;
+function shouldActivateSalesMode(instructions = '') {
+    if (!instructions) return false;
+    const text = String(instructions || '').toLowerCase();
+    return /sales_mode:on|consultivo|vendas|venda|cta|sempre.*link|finalize.*cta/i.test(text);
 }
 
-async function generateAIResponse(userMessage, pageData={}, conversation=[], instructions=''){
-  const start = Date.now();
-  try{
-    if(/\b(link|página|site|comprar|inscrever)\b/i.test(userMessage) && pageData && pageData.url){
-      const url = pageData.url;
-      const salesMode = shouldActivateSalesMode(instructions);
-      return salesMode ? `Aqui está o link oficial: ${url}\n\nQuer que eu te ajude com mais alguma informação sobre o produto?` : `Aqui está o link: ${url}`;
+function generateLocalResponse(userMessage, pageData = {}, instructions = '') {
+    const question = (userMessage || '').toLowerCase();
+    const salesMode = shouldActivateSalesMode(instructions);
+
+    if (/preço|valor|quanto custa/.test(question)) {
+        if (pageData.price) {
+            return salesMode ? `O preço é ${pageData.price}. Quer garantir sua vaga agora?` : `Preço: ${pageData.price}`;
+        }
+        return 'Preço não informado na página.';
     }
-    const systemLines = [
-      "Você é um assistente especializado em vendas online.",
-      "Responda de forma clara, útil e concisa.",
-      "Use apenas informações da página extraída.",
-      "Nunca invente dados que não estejam disponíveis.",
-      "Máximo 2-3 frases por resposta."
-    ];
-    if(shouldActivateSalesMode(instructions)){ systemLines.push("Tom consultivo e entusiasmado.","Termine com pergunta que leve à compra."); }
-    const systemPrompt = systemLines.join('\\n');
-    const contextLines = [];
-    if(pageData.title) contextLines.push(`Produto: ${pageData.title}`);
-    if(pageData.bonuses_detected && pageData.bonuses_detected.length>0) contextLines.push(`Bônus: ${pageData.bonuses_detected.slice(0,3).join(', ')}`);
-    const contentExcerpt = (pageData.summary || pageData.cleanText || '').slice(0,1000);
-    if(contentExcerpt) contextLines.push(`Informações: ${contentExcerpt}`);
-    const pageContext = contextLines.join('\\n');
-    const userPrompt = `${instructions ? `Instruções: ${instructions}\\n\\n` : ''}Contexto:\\n${pageContext}\\n\\nPergunta: ${userMessage}\\n\\nResponda de forma concisa usando apenas as informações fornecidas.`;
-    const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }];
-    let response = null; let usedProvider = 'local';
-    if(process.env.GROQ_API_KEY){ try{ response = await callGroq(messages,0.4,250); usedProvider='groq'; logger.info('GROQ call ok'); }catch(e){ logger.warn('GROQ failed: '+(e.message||e)); } }
-    if(!response && process.env.OPENAI_API_KEY){ try{ response = await callOpenAI(messages,0.2,250); usedProvider='openai'; logger.info('OpenAI call ok'); }catch(e){ logger.warn('OpenAI failed: '+(e.message||e)); } }
-    if(!response || !String(response).trim()){ response = generateLocalResponse(userMessage, pageData, instructions); usedProvider = 'local'; }
-    const finalResponse = clampSentences(String(response).trim(), 3);
-    logger.info(`AI response generated in ${Date.now()-start}ms using ${usedProvider}`);
-    return finalResponse;
-  }catch(err){ logger.error('AI generation failed: '+(err.message||err)); return NOT_FOUND_MSG; }
+
+    if (/como funciona|funcionamento/.test(question)) {
+        const summary = pageData.summary || pageData.description;
+        if (summary) {
+            const shortSummary = clampSentences(summary, 2);
+            return salesMode ? `${shortSummary} Quer saber mais detalhes?` : shortSummary;
+        }
+    }
+
+    if (/bônus|bonus/.test(question)) {
+        if (pageData.bonuses_detected && pageData.bonuses_detected.length > 0) {
+            const bonuses = pageData.bonuses_detected.slice(0, 2).join(', ');
+            return salesMode ? `Inclui: ${bonuses}. Quer garantir todos os bônus?` : `Bônus: ${bonuses}`;
+        }
+        return 'Informações sobre bônus não encontradas.';
+    }
+
+    if (pageData.summary) {
+        const summary = clampSentences(pageData.summary, 2);
+        return salesMode ? `${summary} Posso te ajudar com mais alguma dúvida?` : summary;
+    }
+
+    return NOT_FOUND_MSG;
 }
 
-// Mock data for demos
-const mockData = { analytics: { chatbotsCreated:147, messagesProcessed:8934, successRate:96.7, avgResponseTime:'1.2s', activeUsers:23, totalUsers:892, conversionRate:12.8 } };
+async function generateAIResponse(userMessage, pageData = {}, conversation = [], instructions = '') {
+    const startTime = Date.now();
+    try {
+        // Make a shallow copy and remove price fields to ensure price never appears in the prompt/context
+        if (pageData && typeof pageData === 'object') {
+            pageData = Object.assign({}, pageData);
+            if (pageData.price) {
+                pageData._hidden_price = pageData.price;
+                delete pageData.price;
+            }
+            if (pageData.price_detected) {
+                pageData._hidden_price_detected = pageData.price_detected;
+                pageData.price_detected = [];
+            }
+        }
 
-// Routes
-app.get('/health', (req,res)=>{
-  const uptime = process.uptime();
-  const avgResponseTime = analytics.responseTimeHistory.length>0 ? Math.round(analytics.responseTimeHistory.reduce((a,b)=>a+b,0)/analytics.responseTimeHistory.length) : 0;
-  res.json({ status:'healthy', uptime:Math.floor(uptime), timestamp:new Date().toISOString(), version:'6.0.0 + v7.0', analytics:{ totalRequests:analytics.totalRequests, chatRequests:analytics.chatRequests, extractRequests:analytics.extractRequests, errors:analytics.errors, activeChats:analytics.activeChats.size, avgResponseTime, successfulExtractions:analytics.successfulExtractions, failedExtractions:analytics.failedExtractions, cacheSize:dataCache.size }, services:{ groq:!!process.env.GROQ_API_KEY, openai:!!process.env.OPENAI_API_KEY, puppeteer:!!puppeteer, tesseract:!!Tesseract } });
+        const salesMode = shouldActivateSalesMode(instructions);
+
+        // Direct link handling
+        if (/\b(link|página|site|comprar|inscrever)\b/i.test(userMessage) && pageData && pageData.url) {
+            const url = pageData.url;
+            if (salesMode) return `Aqui está o link oficial: ${url}\n\nQuer que eu te ajude com mais alguma informação sobre o produto?`;
+            return `Aqui está o link: ${url}`;
+        }
+
+        const systemLines = [
+            "Você é um assistente especializado em vendas online.",
+            "Responda de forma clara, útil e concisa.",
+            "Use apenas informações da página extraída.",
+            "Nunca invente dados que não estejam disponíveis.",
+            "Máximo 2-3 frases por resposta."
+        ];
+        if (salesMode) {
+            systemLines.push("Tom consultivo e entusiasmado.");
+            systemLines.push("Termine com pergunta que leve à compra.");
+        }
+        const systemPrompt = systemLines.join('\n');
+
+        const contextLines = [];
+        if (pageData.title) contextLines.push(`Produto: ${pageData.title}`);
+        // Nota: intencionalmente NÃO incluímos o preço no contexto para evitar exibição direta
+        if (pageData.bonuses_detected && pageData.bonuses_detected.length > 0) contextLines.push(`Bônus: ${pageData.bonuses_detected.slice(0, 3).join(', ')}`);
+        const contentExcerpt = (pageData.summary || pageData.cleanText || '').slice(0, 1000);
+        if (contentExcerpt) contextLines.push(`Informações: ${contentExcerpt}`);
+
+        const pageContext = contextLines.join('\n');
+        const userPrompt = `${instructions ? `Instruções: ${instructions}\n\n` : ''}Contexto:\n${pageContext}\n\nPergunta: ${userMessage}\n\nResponda de forma concisa usando apenas as informações fornecidas.`;
+
+        const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }];
+
+        let response = null;
+        let usedProvider = 'local';
+
+        if (process.env.GROQ_API_KEY) {
+            try {
+                response = await callGroq(messages, 0.4, 250);
+                usedProvider = 'groq';
+                logger.info('GROQ API call successful');
+            } catch (groqError) {
+                logger.warn(`GROQ failed: ${groqError.message || groqError}`);
+            }
+        }
+
+        if (!response && process.env.OPENAI_API_KEY) {
+            try {
+                response = await callOpenAI(messages, 0.2, 250);
+                usedProvider = 'openai';
+                logger.info('OpenAI API call successful');
+            } catch (openaiError) {
+                logger.warn(`OpenAI failed: ${openaiError.message || openaiError}`);
+            }
+        }
+
+        if (!response || !String(response).trim()) {
+            response = generateLocalResponse(userMessage, pageData, instructions);
+            usedProvider = 'local';
+        }
+
+        const finalResponse = clampSentences(String(response).trim(), 3);
+        const responseTime = Date.now() - startTime;
+        logger.info(`AI response generated in ${responseTime}ms using ${usedProvider}`);
+        return finalResponse;
+
+    } catch (error) {
+        logger.error('AI response generation failed:', error.message || error);
+        return NOT_FOUND_MSG;
+    }
+}
+
+// ===== API Routes =====
+app.get('/health', (req, res) => {
+    const uptime = process.uptime();
+    const avgResponseTime = analytics.responseTimeHistory.length > 0 ?
+        Math.round(analytics.responseTimeHistory.reduce((a, b) => a + b, 0) / analytics.responseTimeHistory.length) : 0;
+
+    res.json({
+        status: 'healthy',
+        uptime: Math.floor(uptime),
+        timestamp: new Date().toISOString(),
+        version: '6.0.0',
+        analytics: {
+            totalRequests: analytics.totalRequests,
+            chatRequests: analytics.chatRequests,
+            extractRequests: analytics.extractRequests,
+            errors: analytics.errors,
+            activeChats: analytics.activeChats.size,
+            avgResponseTime,
+            successfulExtractions: analytics.successfulExtractions,
+            failedExtractions: analytics.failedExtractions,
+            cacheSize: dataCache.size
+        },
+        services: {
+            groq: !!process.env.GROQ_API_KEY,
+            openai: !!process.env.OPENAI_API_KEY,
+            puppeteer: !!puppeteer,
+            tesseract: !!Tesseract
+        }
+    });
 });
 
-app.get('/status', (req,res)=>{
-  res.json({ status:'online', version:'6.0 + v7.0 integrada', uptime:process.uptime(), memory:process.memoryUsage(), apis:{ groq:!!process.env.GROQ_API_KEY, openai:!!process.env.OPENAI_API_KEY, openrouter:!!process.env.OPENROUTER_API_KEY }, newFeatures:{ dashboard:'/dashboard/demo', widget:'/widget/demo', docs:'/docs' }, timestamp:new Date().toISOString() });
+app.get('/analytics', (req, res) => {
+    const uptimeMs = Date.now() - analytics.startTime;
+    const avgResponseTime = analytics.responseTimeHistory.length > 0 ?
+        Math.round(analytics.responseTimeHistory.reduce((a, b) => a + b, 0) / analytics.responseTimeHistory.length) : 0;
+    res.json({
+        overview: {
+            totalRequests: analytics.totalRequests,
+            chatRequests: analytics.chatRequests,
+            extractRequests: analytics.extractRequests,
+            errorCount: analytics.errors,
+            errorRate: analytics.totalRequests > 0 ? Math.round((analytics.errors / analytics.totalRequests) * 100) + '%' : '0%',
+            activeChats: analytics.activeChats.size,
+            uptime: Math.floor(uptimeMs / 1000),
+            avgResponseTime,
+            successRate: analytics.extractRequests > 0 ? Math.round((analytics.successfulExtractions / analytics.extractRequests) * 100) + '%' : '100%'
+        },
+        performance: {
+            responseTimeHistory: analytics.responseTimeHistory.slice(-20),
+            cacheHits: dataCache.size,
+            memoryUsage: process.memoryUsage()
+        }
+    });
 });
 
-app.get('/analytics', (req,res)=>{
-  const uptimeMs = Date.now()-analytics.startTime;
-  const avgResponseTime = analytics.responseTimeHistory.length>0 ? Math.round(analytics.responseTimeHistory.reduce((a,b)=>a+b,0)/analytics.responseTimeHistory.length) : 0;
-  res.json({ overview:{ totalRequests:analytics.totalRequests, chatRequests:analytics.chatRequests, extractRequests:analytics.extractRequests, errorCount:analytics.errors, errorRate: analytics.totalRequests>0 ? Math.round((analytics.errors/analytics.totalRequests)*100)+'%' : '0%', activeChats:analytics.activeChats.size, uptime:Math.floor(uptimeMs/1000), avgResponseTime, successRate: analytics.extractRequests>0 ? Math.round((analytics.successfulExtractions/analytics.extractRequests)*100)+'%' : '100%' }, performance:{ responseTimeHistory: analytics.responseTimeHistory.slice(-20), cacheHits: dataCache.size, memoryUsage: process.memoryUsage() } });
+// /extract endpoint
+app.post('/extract', async (req, res) => {
+    analytics.extractRequests++;
+    try {
+        const { url, instructions } = req.body || {};
+        if (!url) return res.status(400).json({ success: false, error: 'URL é obrigatório' });
+
+        try { new URL(url); } catch (urlErr) { return res.status(400).json({ success: false, error: 'URL inválido' }); }
+
+        logger.info(`Starting extraction for URL: ${url}`);
+        const extractedData = await extractPageData(url);
+        if (instructions) extractedData.custom_instructions = instructions;
+
+        // Remove price fields before sending to frontend/UI
+        hidePriceFields(extractedData);
+
+        return res.json({ success: true, data: extractedData });
+
+    } catch (error) {
+        analytics.errors++;
+        logger.error('Extract endpoint error:', error.message || error);
+        return res.status(500).json({ success: false, error: 'Erro interno ao extrair página' });
+    }
 });
 
-// POST /extract
-app.post('/extract', async (req,res)=>{
-  analytics.extractRequests++;
-  try{
-    const { url, instructions } = req.body || {};
-    if(!url) return res.status(400).json({ success:false, error:'URL é obrigatório' });
-    try{ new URL(url); } catch(e){ return res.status(400).json({ success:false, error:'URL inválido' }); }
-    logger.info('Starting extraction for URL: '+url);
-    const extracted = await extractPageData(url);
-    if(instructions) extracted.custom_instructions = instructions;
-    return res.json({ success:true, data:extracted });
-  }catch(err){ analytics.errors++; logger.error('Extract endpoint error: '+(err.message||err)); return res.status(500).json({ success:false, error:'Erro interno ao extrair página' }); }
+// /chat-universal endpoint
+app.post('/chat-universal', async (req, res) => {
+    analytics.chatRequests++;
+    try {
+        const { message, pageData, url, conversationId, instructions = '', robotName } = req.body || {};
+        if (!message) return res.status(400).json({ success: false, error: 'Mensagem é obrigatória' });
+
+        if (conversationId) {
+            analytics.activeChats.add(conversationId);
+            setTimeout(() => analytics.activeChats.delete(conversationId), 30 * 60 * 1000);
+        }
+
+        let processedPageData = pageData;
+        if (!processedPageData && url) processedPageData = await extractPageData(url);
+
+        // Ensure price isn't exposed via chat-universal responses & context
+        if (processedPageData) hidePriceFields(processedPageData);
+
+        const aiResponse = await generateAIResponse(message, processedPageData || {}, [], instructions);
+
+        let finalResponse = aiResponse;
+        if (processedPageData?.url && !String(finalResponse).includes(processedPageData.url)) {
+            finalResponse = `${finalResponse}\n\n${processedPageData.url}`;
+        }
+
+        return res.json({
+            success: true,
+            response: finalResponse,
+            bonuses_detected: processedPageData?.bonuses_detected || [],
+            metadata: {
+                hasPageData: !!processedPageData,
+                contentLength: processedPageData?.cleanText?.length || 0,
+                method: processedPageData?.method || 'none'
+            }
+        });
+
+    } catch (error) {
+        analytics.errors++;
+        logger.error('Chat endpoint error:', error.message || error);
+        return res.status(500).json({ success: false, error: 'Erro interno ao gerar resposta' });
+    }
 });
 
-// POST /chat-universal
-app.post('/chat-universal', async (req,res)=>{
-  analytics.chatRequests++;
-  try{
-    const { message, pageData, url, conversationId, instructions = '', robotName, extractedData } = req.body || {};
-    if(!message) return res.status(400).json({ success:false, error:'Mensagem é obrigatória' });
-    if(conversationId){ analytics.activeChats.add(conversationId); setTimeout(()=>analytics.activeChats.delete(conversationId), 30*60*1000); }
-    let processedPageData = pageData || extractedData;
-    if(!processedPageData && url) processedPageData = await extractPageData(url);
-    const aiResponse = await generateAIResponse(message, processedPageData || {}, [], instructions);
-    let finalResponse = aiResponse;
-    if(processedPageData?.url && !String(finalResponse).includes(processedPageData.url)) finalResponse = `${finalResponse}\n\n${processedPageData.url}`;
-    return res.json({ success:true, response: finalResponse, bonuses_detected: processedPageData?.bonuses_detected || [], robotName: robotName || 'Assistente Virtual', timestamp: new Date().toISOString(), metadata: { hasPageData: !!processedPageData, contentLength: processedPageData?.cleanText?.length || 0, method: processedPageData?.method || 'none' } });
-  }catch(err){ analytics.errors++; logger.error('Chat endpoint error: '+(err.message||err)); return res.status(500).json({ success:false, error:'Erro interno ao gerar resposta', fallbackResponse:'Desculpe, estou com dificuldades técnicas no momento. Pode tentar novamente em alguns instantes?' }); }
+// Widget JS
+app.get('/widget.js', (req, res) => {
+    res.set('Content-Type', 'application/javascript');
+    res.send(`// LinkMágico Widget v6.0 - Optimized
+(function() {
+    'use strict';
+    if (window.LinkMagicoWidget) return;
+    var LinkMagicoWidget = {
+        config: {
+            position: 'bottom-right',
+            primaryColor: '#667eea',
+            robotName: 'Assistente IA',
+            salesUrl: '',
+            instructions: '',
+            apiBase: window.location.origin
+        },
+        init: function(userConfig) {
+            this.config = Object.assign(this.config, userConfig || {});
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', this.createWidget.bind(this));
+            } else {
+                this.createWidget();
+            }
+        },
+        createWidget: function() {
+            var container = document.createElement('div');
+            container.id = 'linkmagico-widget';
+            container.innerHTML = this.getHTML();
+            this.addStyles();
+            document.body.appendChild(container);
+            this.bindEvents();
+        },
+        getHTML: function() {
+            return '<div class=\"lm-button\" id=\"lm-button\"><i class=\"fas fa-comments\"></i></div><div class=\"lm-chat\" id=\"lm-chat\" style=\"display:none;flex-direction:column;display:flex;\">' +
+                   '<div class=\"lm-header\"><span>' + this.config.robotName + '</span><button id=\"lm-close\">×</button></div>' +
+                   '<div class=\"lm-messages\" id=\"lm-messages\"><div class=\"lm-msg lm-bot\">Olá! Como posso ajudar?</div></div>' +
+                   '<div class=\"lm-input\"><input id=\"lm-input\" placeholder=\"Digite...\"><button id=\"lm-send\">➤</button></div></div>';
+        },
+        addStyles: function() {
+            if (document.getElementById('lm-styles')) return;
+            var css = '#linkmagico-widget{position:fixed;right:20px;bottom:20px;z-index:999999;font-family:sans-serif}.lm-button{width:60px;height:60px;background:' + this.config.primaryColor + ';border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:24px;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,0.15);transition:all 0.3s}.lm-chat{position:absolute;bottom:80px;right:0;width:350px;height:500px;background:white;border-radius:15px;box-shadow:0 10px 40px rgba(0,0,0,0.15);display:flex;flex-direction:column;overflow:hidden}.lm-header{background:' + this.config.primaryColor + ';color:white;padding:15px;display:flex;justify-content:space-between;align-items:center}.lm-close{background:none;border:none;color:white;cursor:pointer;font-size:20px}.lm-messages{flex:1;padding:15px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}.lm-msg{max-width:80%;padding:10px 15px;border-radius:12px;font-size:14px}.lm-bot{background:#f1f3f4;color:#333;align-self:flex-start}.lm-user{background:' + this.config.primaryColor + ';color:white;align-self:flex-end}.lm-input{padding:15px;display:flex;gap:10px}.lm-input input{flex:1;border:1px solid #e0e0e0;border-radius:20px;padding:10px 15px;outline:none}.lm-input button{background:' + this.config.primaryColor + ';border:none;border-radius:50%;width:40px;height:40px;color:white;cursor:pointer}';
+            var style = document.createElement('style');
+            style.id = 'lm-styles';
+            style.textContent = css;
+            document.head.appendChild(style);
+        },
+        bindEvents: function() {
+            var self = this;
+            document.addEventListener('click', function(ev) {
+                if (ev.target && ev.target.id === 'lm-button') {
+                    var chat = document.getElementById('lm-chat');
+                    if (chat) chat.style.display = chat.style.display === 'flex' ? 'none' : 'flex';
+                }
+            });
+            // delegated events
+            document.addEventListener('click', function(ev){
+                if (ev.target && ev.target.id === 'lm-close') document.getElementById('lm-chat').style.display = 'none';
+                if (ev.target && ev.target.id === 'lm-send') self.send();
+            });
+            document.addEventListener('keypress', function(e){
+                if (e.key === 'Enter' && document.activeElement && document.activeElement.id === 'lm-input') self.send();
+            });
+        },
+        send: function() {
+            var input = document.getElementById('lm-input');
+            var msg = input ? input.value.trim() : '';
+            if (!msg) return;
+            this.addMsg(msg, true);
+            if (input) input.value = '';
+            var self = this;
+            fetch(this.config.apiBase + '/chat-universal', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    message: msg,
+                    robotName: this.config.robotName,
+                    instructions: this.config.instructions,
+                    url: this.config.salesUrl,
+                    conversationId: 'widget_' + Date.now()
+                })
+            }).then(function(r){ return r.json(); })
+            .then(function(d){ if (d.success) self.addMsg(d.response, false); else self.addMsg('Erro. Tente novamente.', false); })
+            .catch(function(){ self.addMsg('Erro de conexão.', false); });
+        },
+        addMsg: function(text, isUser) {
+            var div = document.createElement('div');
+            div.className = 'lm-msg ' + (isUser ? 'lm-user' : 'lm-bot');
+            div.textContent = text;
+            var container = document.getElementById('lm-messages');
+            if (container) { container.appendChild(div); container.scrollTop = container.scrollHeight; }
+        }
+    };
+    window.LinkMagicoWidget = LinkMagicoWidget;
+})();
+`);
 });
 
-// Dashboard demo
-app.get('/dashboard/demo', dashboardDemoLimit, (req,res)=>{
-  logger.info('Dashboard demo accessed', { ip: req.ip });
-  res.send(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard Demo</title><style>*{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f5f7fa;margin:0} .banner{background:linear-gradient(45deg,#ff6b6b,#feca57);color:#fff;padding:1rem;text-align:center} .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;padding:1rem} .card{background:#fff;padding:1rem;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.06)}</style></head><body><div class="banner">🔴 DEMO PÚBLICO - Dashboard Analytics</div><div class="grid"><div class="card"><h3>${mockData.analytics.chatbotsCreated}</h3><p>Chatbots Criados</p></div><div class="card"><h3>${mockData.analytics.messagesProcessed}</h3><p>Mensagens Processadas</p></div><div class="card"><h3>${mockData.analytics.successRate}%</h3><p>Taxa de Sucesso</p></div><div class="card"><h3>${mockData.analytics.avgResponseTime}</h3><p>Tempo Médio</p></div></div></body></html>`);
-});
+// Chatbot HTML endpoint
+function generateChatbotHTML(pageData = {}, robotName = 'Assistente IA', customInstructions = '') {
+    const escapedPageData = JSON.stringify(pageData || {});
+    const safeRobotName = String(robotName || 'Assistente IA').replace(/"/g, '\\"');
+    const safeInstructions = String(customInstructions || '').replace(/"/g, '\\"');
 
-// Widget demo
-app.get('/widget/demo', widgetEmbedLimit, (req,res)=>{
-  logger.info('Widget demo accessed', { ip: req.ip });
-  res.send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Widget Demo</title></head><body><h1>Widget Demo - Link Mágico</h1><p>Use /widget.js to embed</p></body></html>`);
-});
+    return `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LinkMágico Chatbot - ${safeRobotName}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 15px; }
+.chat-container { background: rgba(255,255,255,0.95); backdrop-filter: blur(20px); border-radius: 20px; width: 100%; max-width: 600px; height: 90vh; max-height: 700px; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.15); overflow: hidden; }
+.chat-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }
+.chat-header h1 { font-size: 1.3rem; font-weight: 700; margin-bottom: 5px; }
+.chat-messages { flex: 1; padding: 20px; overflow-y: auto; background: linear-gradient(to bottom, #f9fafb, white); }
+.message { margin-bottom: 15px; display: flex; align-items: flex-end; gap: 10px; }
+.message .message-avatar { width: 40px; height: 40px; border-radius: 50%; background: #f3f4f6; display:flex; align-items:center; justify-content:center; color:#374151; }
+.message .message-content { background: #fff; padding: 12px 14px; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.04); max-width: 80%; }
+.message.user .message-content { background: linear-gradient(135deg,#667eea,#764ba2); color: white; }
+.chat-input { padding: 20px; background: white; border-top: 1px solid #e5e7eb; display:flex; gap:10px; align-items:center; }
+.message-input { flex: 1; padding: 12px 16px; border: 2px solid #e5e7eb; border-radius: 20px; font-size: 0.9rem; }
+.send-btn { width: 44px; height: 44px; border: none; border-radius: 50%; background: linear-gradient(135deg,#667eea,#764ba2); color: white; cursor: pointer; display:flex; align-items:center; justify-content:center; }
+@media (max-width: 768px) { .chat-container { height: 100vh; border-radius: 0; } }
+</style>
+</head>
+<body>
+<div class="chat-container">
+    <div class="chat-header"><h1>${safeRobotName}</h1><p>Assistente Inteligente para Vendas</p></div>
+    <div class="chat-messages" id="chatMessages">
+        <div class="message bot"><div class="message-avatar"><i class="fas fa-robot"></i></div><div class="message-content">Olá! Sou o ${safeRobotName}. Como posso te ajudar hoje?</div></div>
+    </div>
+    <div class="chat-input">
+        <input id="messageInput" class="message-input" placeholder="Digite sua pergunta..." maxlength="500" />
+        <button id="sendBtn" class="send-btn"><i class="fas fa-paper-plane"></i></button>
+    </div>
+</div>
 
-// Docs
-app.get('/docs', (req,res)=>{
-  res.send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Docs</title></head><body><h1>Documentação Link Mágico</h1><p>Ver endpoints: /chat-universal, /extract, /dashboard/demo, /widget/demo</p></body></html>`);
-});
+<script>
+const pageData = ${escapedPageData};
+const robotName = "${safeRobotName}";
+const instructions = "${safeInstructions}";
+const conversationId = 'chat_' + Date.now();
 
-// Widget JS (client side embed)
-app.get('/widget.js', (req,res)=>{
-  res.set('Content-Type','application/javascript');
-  res.send(`(function(){ if(window.LinkMagicoWidget) return; window.LinkMagicoWidget = { init: function(cfg){ this.cfg = Object.assign({apiBase:window.location.origin,robotName:'Assistente IA',primaryColor:'#667eea',instructions:''}, cfg||{}); if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', this._create.bind(this)); } else this._create(); }, _create:function(){ const c=document.createElement('div'); c.id='linkmagico-widget'; c.innerHTML='<div style="position:fixed;right:20px;bottom:20px;z-index:999999"><button id=\"lm-btn\" style=\"width:60px;height:60px;border-radius:50%;background:'+this.cfg.primaryColor+';color:#fff\">💬</button></div>'; document.body.appendChild(c); document.getElementById('lm-btn').addEventListener('click', ()=>{ alert(\"Widget ativo - integracao com /chat-universal\") }); } }; })();`);
-});
+function addMessage(content, isUser) {
+    const container = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message ' + (isUser ? 'user' : 'bot');
+    const avatar = document.createElement('div'); avatar.className = 'message-avatar';
+    avatar.innerHTML = isUser ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
+    const contentDiv = document.createElement('div'); contentDiv.className = 'message-content';
+    contentDiv.textContent = content;
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(contentDiv);
+    container.appendChild(messageDiv);
+    container.scrollTop = container.scrollHeight;
+}
 
-// Chatbot UI generator
-function generateChatbotHTML(pageData = {}, robotName = 'Assistente IA', customInstructions = ''){
-  const safeRobot = String(robotName||'Assistente IA').replace(/"/g,'\\"');
-  const safeInst = String(customInstructions||'').replace(/"/g,'\\"');
-  const escapedPage = JSON.stringify(pageData || {});
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LinkMágico - ${safeRobot}</title><style>*{box-sizing:border-box}body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;padding:20px} .chat{max-width:700px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;display:flex;flex-direction:column;height:80vh} .messages{flex:1;padding:16px;overflow:auto} .input{display:flex;padding:12px;border-top:1px solid #eee} input{flex:1;padding:10px;border-radius:20px;border:1px solid #ddd} button{margin-left:8px;padding:10px 14px;border-radius:8px;background:#667eea;color:#fff;border:0}</style></head><body><div class="chat"><div style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:16px"><h2>${safeRobot}</h2><p>Assistente Inteligente</p></div><div class="messages" id="messages"><div><strong>${safeRobot}:</strong> Olá! Como posso ajudar?</div></div><div class="input"><input id="msg" placeholder="Digite sua pergunta"><button id="send">Enviar</button></div></div><script>const pageData=${escapedPage};document.getElementById('send').onclick=async function(){ const m=document.getElementById('msg').value.trim(); if(!m) return; const cont=document.getElementById('messages'); cont.innerHTML += '<div style=\"text-align:right\"><strong>Você:</strong> '+m+'</div>'; document.getElementById('msg').value=''; try{ const r=await fetch('/chat-universal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:m,pageData:pageData,robotName:'${safeRobot}',instructions:'${safeInst}',conversationId:'chat_'+Date.now()})}); const j=await r.json(); if(j.success){ cont.innerHTML += '<div><strong>${safeRobot}:</strong> '+(j.response||'Sem resposta')+'</div>'; } else { cont.innerHTML += '<div><strong>${safeRobot}:</strong> Erro ao gerar resposta</div>'; } }catch(e){ cont.innerHTML += '<div><strong>${safeRobot}:</strong> Erro de conexão</div>'; } }</script></body></html>`;
+async function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
+    if (!message) return;
+    document.getElementById('sendBtn').disabled = true;
+    addMessage(message, true);
+    input.value = '';
+    try {
+        const response = await fetch('/chat-universal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message, pageData: pageData, robotName: robotName, conversationId: conversationId, instructions: instructions })
+        });
+        const data = await response.json();
+        if (data.success) {
+            let reply = data.response;
+            if (data.bonuses_detected && data.bonuses_detected.length > 0) reply += "\\n\\nBônus inclusos: " + data.bonuses_detected.slice(0,3).join(", ");
+            addMessage(reply, false);
+        } else { addMessage('Desculpe, ocorreu um erro. Tente novamente.', false); }
+    } catch (err) {
+        addMessage('Erro de conexão. Tente novamente.', false);
+    } finally {
+        document.getElementById('sendBtn').disabled = false;
+    }
+}
+
+document.getElementById('sendBtn').onclick = sendMessage;
+document.getElementById('messageInput').onkeypress = function(e){ if (e.key === 'Enter') sendMessage(); };
+</script>
+</body>
+</html>`;
 }
 
 // Chatbot endpoint
-app.get('/chatbot', async (req,res)=>{
-  try{
-    const robotName = req.query.name || 'Assistente IA';
-    const url = req.query.url || '';
-    const instructions = req.query.instructions || '';
-    let pageData = {};
-    if(url){ try{ pageData = await extractPageData(url); }catch(e){ logger.warn('Failed to extract for chatbot UI: '+(e.message||e)); } }
-    const html = generateChatbotHTML(pageData, robotName, instructions);
-    res.set('Content-Type','text/html; charset=utf-8').send(html);
-  }catch(err){ logger.error('Chatbot HTML generation error: '+(err.message||err)); res.status(500).send('<h3>Erro ao gerar interface do chatbot</h3>'); }
+app.get('/chatbot', async (req, res) => {
+    try {
+        const robotName = req.query.name || 'Assistente IA';
+        const url = req.query.url || '';
+        const instructions = req.query.instructions || '';
+        let pageData = {};
+        if (url) {
+            try { pageData = await extractPageData(url); } catch (e) { logger.warn('Failed to extract for chatbot UI:', e.message || e); }
+        }
+
+        // Ensure price fields are hidden before embedding into HTML
+        if (pageData) hidePriceFields(pageData);
+
+        const html = generateChatbotHTML(pageData, robotName, instructions);
+        res.set('Content-Type', 'text/html; charset=utf-8').send(html);
+    } catch (err) {
+        logger.error('Chatbot HTML generation error:', err.message || err);
+        res.status(500).send('<h3>Erro ao gerar interface do chatbot</h3>');
+    }
 });
 
-// Root fallback
-app.get('/', (req,res)=>{
-  const indexPath = path.join(__dirname,'public','index.html');
-  if(fs.existsSync(indexPath)) return res.sendFile(indexPath);
-  res.send(`<html><body style="font-family:Arial,sans-serif;text-align:center;padding:40px"><h1>🤖 LinkMágico Chatbot v6.0 + v7.0</h1><p><a href="/health">Status</a> • <a href="/analytics">Analytics</a> • <a href="/widget.js">Widget</a> • <a href="/chatbot">Chat Demo</a></p><p><a href="/dashboard/demo">Dashboard Demo</a> • <a href="/widget/demo">Widget Demo</a> • <a href="/docs">Docs</a></p></body></html>`);
+// Root endpoint
+app.get('/', (req, res) => {
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    if (fs.existsSync(indexPath)) return res.sendFile(indexPath);
+    return res.send(`<html><body style="font-family: Arial, sans-serif; text-align:center; padding:40px;">
+        <h1>🤖 LinkMágico Chatbot v6.0</h1>
+        <p>Sistema de IA Conversacional para Vendas Online</p>
+        <p><a href="/health">Status</a> • <a href="/analytics">Analytics</a> • <a href="/widget.js">Widget</a> • <a href="/chatbot">Chat Demo</a></p>
+    </body></html>`);
 });
 
-// Error handling & 404
-app.use((err,req,res,next)=>{ analytics.errors++; logger.error('Unhandled error:', err); res.status(err.status || 500).json({ success:false, error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err.message || String(err)) }); });
-app.use((req,res)=> res.status(404).json({ success:false, error:'Endpoint not found' }));
+// Error handlers
+app.use((err, req, res, next) => {
+    analytics.errors++;
+    logger.error('Unhandled error:', err);
+    res.status(err.status || 500).json({ success: false, error: process.env.NODE_ENV === 'production' ? 'Internal server error' : (err.message || String(err)) });
+});
+
+app.use((req, res) => {
+    res.status(404).json({ success: false, error: 'Endpoint not found' });
+});
 
 // Graceful shutdown
-process.on('SIGTERM', ()=>{ logger.info('SIGTERM received, shutting down'); process.exit(0); });
-process.on('SIGINT', ()=>{ logger.info('SIGINT received, shutting down'); process.exit(0); });
+process.on('SIGTERM', () => { logger.info('SIGTERM received, shutting down'); process.exit(0); });
+process.on('SIGINT', () => { logger.info('SIGINT received, shutting down'); process.exit(0); });
 
 // Start server
 const PORT = parseInt(process.env.PORT || '3000', 10);
-app.listen(PORT, '0.0.0.0', ()=>{
-  logger.info(`🚀 LinkMágico Chatbot v6.0 + v7.0 Server Started on port ${PORT}`);
-  console.log(`Server started on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    logger.info(`🚀 LinkMágico Chatbot v6.0 Server Started on port ${PORT}`);
+    console.log(`Server started on port ${PORT}`);
 });
 
+
+
+/*****************************************************
+ * Chatbot creation & distribution (NEW FIXES)
+ *****************************************************/
+
+const chatbots = new Map();
+
+function makeSlug() {
+  const t = Date.now().toString(36);
+  const r = Math.random().toString(36).slice(2,8);
+  return (t + '-' + r);
+}
+
+app.post('/create-chatbot', async (req, res) => {
+  try {
+    const { robotName = 'Assistente IA', url = '', instructions = '', channels = [] } = req.body || {};
+    if (!url) return res.status(400).json({ success:false, error:'URL é obrigatório' });
+    try { new URL(url); } catch(e) { return res.status(400).json({ success:false, error:'URL inválido' }); }
+
+    let pageData = {};
+    try {
+      pageData = await extractPageData(url);
+    } catch (e) {
+      logger.warn('Extraction failed during create-chatbot: ' + (e.message || e));
+      pageData = { url };
+    }
+
+    hidePriceFields(pageData);
+
+    const slug = makeSlug();
+    const record = { robotName, instructions, pageData, channels, createdAt: Date.now() };
+    chatbots.set(slug, record);
+
+    const base = (req.protocol ? req.protocol : 'http') + '://' + (req.get('host') || req.headers.host);
+    const chatLink = `${base}/c/${encodeURIComponent(slug)}`;
+    const embedCode = `<script>(function(){var s=document.createElement('script');s.src='${base}/widget.js';s.onload=function(){window.LinkMagicoWidget && window.LinkMagicoWidget.init({robotName:${JSON.stringify(robotName)}, instructions:${JSON.stringify(instructions)}, apiBase:'${base}', salesUrl:'${pageData.url || ''}'});};document.head.appendChild(s);})();</script>`;
+
+    return res.json({ success:true, slug, chatLink, embedCode, record });
+  } catch (err) {
+    analytics.errors++; logger.error('create-chatbot error: ' + (err.message || err));
+    return res.status(500).json({ success:false, error:'Erro ao criar chatbot' });
+  }
+});
+
+app.get('/c/:slug', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const record = chatbots.get(slug);
+    if (!record) return res.status(404).send('<h3>Chatbot não encontrado (slug inválido)</h3>');
+    const html = generateChatbotHTML(record.pageData || {}, record.robotName || 'Assistente IA', record.instructions || '');
+    res.set('Content-Type','text/html; charset=utf-8').send(html);
+  } catch (err) {
+    logger.error('Serve chatbot by slug failed: ' + (err.message || err));
+    res.status(500).send('<h3>Erro ao carregar chatbot</h3>');
+  }
+});
+
+app.get('/dashboard/admin', (req, res) => {
+  const base = (req.protocol ? req.protocol : 'http') + '://' + (req.get('host') || req.headers.host);
+  res.send(`
+  <!doctype html>
+  <html lang="pt-BR">
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>LinkMágico - Painel Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0f172a;color:#fff;padding:24px}
+      .container{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 420px;gap:20px;align-items:start}
+      .card{background:linear-gradient(180deg,#0b1220,#0f172a);padding:18px;border-radius:12px;box-shadow:0 10px 30px rgba(2,6,23,0.7)}
+      label{display:block;font-size:0.9rem;margin-bottom:8px;color:#cbd5e1}
+      input,textarea,select{width:100%;padding:10px;border-radius:8px;border:1px solid #1f2937;background:#020617;color:#fff;margin-bottom:12px}
+      .btn{display:inline-block;padding:12px 18px;border-radius:10px;background:linear-gradient(90deg,#7c3aed,#06b6d4);color:white;border:0;cursor:pointer}
+      .social-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+      .social{padding:10px;border-radius:8px;background:#111827;text-align:center;cursor:pointer}
+      iframe.preview{width:100%;height:600px;border-radius:8px;border:1px solid #111827;background:#fff}
+      .muted{color:#9ca3af;font-size:0.85rem}
+      .small{font-size:0.9rem;color:#e6eef8;margin-top:8px}
+    </style>
+  </head>
+  <body>
+    <h1>LinkMágico - Painel de Criação</h1>
+    <p class="muted">Crie chatbots distribuíveis para clientes. Abaixo insira os dados e clique em <strong>Ativar Chatbot Inteligente</strong>.</p>
+    <div class="container">
+      <div class="card">
+        <label>Nome do Assistente Virtual</label>
+        <input id="robotName" placeholder="Assistente de Vendas"/>
+        <label>URL da Página</label>
+        <input id="pageUrl" placeholder="https://exemplo.com/produto"/>
+        <label>Instruções Personalizadas (opcional)</label>
+        <textarea id="instructions" rows="4" placeholder="Seja consultivo, termine com CTA..."></textarea>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button id="activateBtn" class="btn">🚀 Ativar Chatbot Inteligente</button>
+          <button id="copyEmbed" class="btn" style="background:#111827">📋 Copiar Embed</button>
+        </div>
+        <div class="small">Canais: selecione manualmente no painel do cliente. Após ativar, use os botões abaixo para compartilhar o link.</div>
+        <div style="margin-top:12px">
+          <div class="social-grid">
+            <div class="social" id="shareWhatsapp">WhatsApp</div>
+            <div class="social" id="shareTelegram">Telegram</div>
+            <div class="social" id="shareFacebook">Facebook</div>
+            <div class="social" id="shareTwitter">Twitter</div>
+            <div class="social" id="shareLinkedin">LinkedIn</div>
+            <div class="social" id="shareCopy">Copiar Link</div>
+          </div>
+        </div>
+        <div id="responseArea" style="margin-top:12px;color:#d1fae5"></div>
+      </div>
+
+      <div class="card">
+        <h3>Preview do Chatbot</h3>
+        <iframe id="preview" class="preview" src="${base}/chatbot" title="Preview do Chatbot"></iframe>
+        <div class="small" style="margin-top:8px">Após ativar, o preview carrega a versão distribuível. Também é possível usar o código embed para inserir o widget no site do cliente.</div>
+      </div>
+    </div>
+
+    <script>
+      const activateBtn = document.getElementById('activateBtn');
+      const preview = document.getElementById('preview');
+      const responseArea = document.getElementById('responseArea');
+      const copyEmbedBtn = document.getElementById('copyEmbed');
+      let latest = null;
+
+      activateBtn.addEventListener('click', async function() {
+        const robotName = document.getElementById('robotName').value || 'Assistente IA';
+        const pageUrl = document.getElementById('pageUrl').value || '';
+        const instructions = document.getElementById('instructions').value || '';
+        if(!pageUrl){ responseArea.textContent = 'A URL da página é obrigatória'; return; }
+        activateBtn.disabled = true;
+        activateBtn.textContent = 'Ativando...';
+        try {
+          const res = await fetch('/create-chatbot', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ robotName, url: pageUrl, instructions, channels: [] })
+          });
+          const data = await res.json();
+          if (data && data.success) {
+            latest = data;
+            responseArea.innerHTML = '<div>✅ Chatbot criado: <a href="'+data.chatLink+'" target="_blank">'+data.chatLink+'</a></div>';
+            preview.src = data.chatLink;
+            copyToClipboard(data.embedCode);
+          } else {
+            responseArea.textContent = 'Erro ao criar: ' + (data.error || JSON.stringify(data));
+          }
+        } catch (e) {
+          responseArea.textContent = 'Erro de rede ao criar chatbot';
+        } finally {
+          activateBtn.disabled = false;
+          activateBtn.textContent = '🚀 Ativar Chatbot Inteligente';
+        }
+      });
+
+      copyEmbedBtn.addEventListener('click', function(){
+        if(latest && latest.embedCode) copyToClipboard(latest.embedCode);
+      });
+
+      function copyToClipboard(text){
+        try {
+          navigator.clipboard.writeText(text);
+          responseArea.innerHTML = '<div>✅ Copiado para a área de transferência</div>';
+        } catch(e){
+          responseArea.innerHTML = '<div>🔔 Copiar manualmente: <textarea style="width:100%;height:80px">'+text+'</textarea></div>';
+        }
+      }
+
+      document.getElementById('shareWhatsapp').addEventListener('click', function(){
+        if(!latest) return alert('Crie o chatbot primeiro');
+        const url = 'https://wa.me/?text=' + encodeURIComponent(latest.chatLink);
+        window.open(url,'_blank');
+      });
+      document.getElementById('shareTelegram').addEventListener('click', function(){
+        if(!latest) return alert('Crie o chatbot primeiro');
+        const url = 'https://t.me/share/url?url=' + encodeURIComponent(latest.chatLink);
+        window.open(url,'_blank');
+      });
+      document.getElementById('shareFacebook').addEventListener('click', function(){
+        if(!latest) return alert('Crie the chatbot primeiro');
+        const url = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(latest.chatLink);
+        window.open(url,'_blank');
+      });
+      document.getElementById('shareTwitter').addEventListener('click', function(){
+        if(!latest) return alert('Crie o chatbot primeiro');
+        const url = 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(latest.chatLink);
+        window.open(url,'_blank');
+      });
+      document.getElementById('shareLinkedin').addEventListener('click', function(){
+        if(!latest) return alert('Crie o chatbot primeiro');
+        const url = 'https://www.linkedin.com/sharing/share-offsite/?url=' + encodeURIComponent(latest.chatLink);
+        window.open(url,'_blank');
+      });
+      document.getElementById('shareCopy').addEventListener('click', function(){
+        if(!latest) return alert('Crie o chatbot primeiro');
+        copyToClipboard(latest.chatLink);
+      });
+    </script>
+  </body>
+  </html>
+  `);
+});
+
+app.get('/dashboard/list-chatbots', (req, res) => {
+  const list = Array.from(chatbots.entries()).map(([slug, r])=>({ slug, robotName: r.robotName, url: r.pageData?.url || '', createdAt: r.createdAt }));
+  res.json({ success:true, count: list.length, list });
+});
+
+// Keep module.exports for compatibility (if the original trimmed it above)
 module.exports = app;
